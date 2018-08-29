@@ -73,12 +73,13 @@ class Meta final {
         }
 
         template<typename Func, Func *Ptr, typename... Property>
-        static auto ext(const char *str, Property &&... property) ENTT_NOEXCEPT {
+        static auto func(const char *str, Property &&... property) ENTT_NOEXCEPT {
             using helper_type = FreeFuncHelper<Type, Func, Ptr>;
+            const auto *next = internal::MetaInfo::type<Type>->func;
 
             static internal::MetaFuncNode node{
                 HashedString{str},
-                internal::MetaInfo::type<Type>->func,
+                next,
                 properties<Type, std::integral_constant<Func *, Ptr>>(std::forward<Property>(property)...),
                 helper_type::size,
                 &internal::MetaInfo::resolve<typename helper_type::return_type>,
@@ -102,6 +103,8 @@ class Meta final {
 
     template<typename Class>
     struct MetaFactory<Class, std::enable_if_t<std::is_class<Class>::value>>: MetaFactory<Class, Class> {
+        using MetaFactory<Class, Class>::func;
+
         template<typename Type, Type Class:: *Member, typename... Property>
         static auto data(const char *str, Property &&... property) ENTT_NOEXCEPT {
             static internal::MetaDataNode node{
