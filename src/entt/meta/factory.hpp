@@ -75,11 +75,11 @@ class Meta final {
         template<typename Func, Func *Ptr, typename... Property>
         static auto func(const char *str, Property &&... property) ENTT_NOEXCEPT {
             using helper_type = FreeFuncHelper<Type, Func, Ptr>;
-            const auto *next = internal::MetaInfo::type<Type>->func;
+            auto * const type = internal::MetaInfo::type<Type>;
 
             static internal::MetaFuncNode node{
                 HashedString{str},
-                next,
+                type->func,
                 properties<Type, std::integral_constant<Func *, Ptr>>(std::forward<Property>(property)...),
                 helper_type::size,
                 &internal::MetaInfo::resolve<typename helper_type::return_type>,
@@ -93,7 +93,7 @@ class Meta final {
                 }
             };
 
-            assert(!duplicate(HashedString{str}, internal::MetaInfo::type<Type>->func));
+            assert(!duplicate(HashedString{str}, node.next));
             assert((!internal::MetaInfo::func<Type, std::integral_constant<Func *, Ptr>>));
             internal::MetaInfo::func<Type, std::integral_constant<Func *, Ptr>> = &node;
             internal::MetaInfo::type<Type>->func = &node;
@@ -126,7 +126,7 @@ class Meta final {
                 }
             };
 
-            assert(!duplicate(HashedString{str}, internal::MetaInfo::type<Class>->data));
+            assert(!duplicate(HashedString{str}, node.next));
             assert((!internal::MetaInfo::data<Class, std::integral_constant<Type Class:: *, Member>>));
             internal::MetaInfo::data<Class, std::integral_constant<Type Class:: *, Member>> = &node;
             internal::MetaInfo::type<Class>->data = &node;
@@ -153,7 +153,7 @@ class Meta final {
                 }
             };
 
-            assert(!duplicate(HashedString{str}, internal::MetaInfo::type<Class>->func));
+            assert(!duplicate(HashedString{str}, node.next));
             assert((!internal::MetaInfo::func<Class, std::integral_constant<Type Class:: *, Member>>));
             internal::MetaInfo::func<Class, std::integral_constant<Type Class:: *, Member>> = &node;
             internal::MetaInfo::type<Class>->func = &node;
@@ -370,7 +370,7 @@ class Meta final {
             }
         };
 
-        assert(!duplicate(name, internal::MetaInfo::type<>));
+        assert(!duplicate(name, node.next));
         assert(!internal::MetaInfo::type<Type>);
         internal::MetaInfo::type<Type> = &node;
         internal::MetaInfo::type<> = &node;
