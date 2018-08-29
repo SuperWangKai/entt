@@ -26,8 +26,10 @@ class Meta final {
     struct MetaFactory {
         template<typename... Args, typename... Property>
         static auto ctor(Property &&... property) ENTT_NOEXCEPT {
+            auto * const type = internal::MetaInfo::type<Type>;
+
             static internal::MetaCtorNode node{
-                internal::MetaInfo::type<Type>->ctor,
+                type->ctor,
                 properties<Type, Args...>(std::forward<Property>(property)...),
                 sizeof...(Args),
                 [](typename internal::MetaCtorNode::size_type index) {
@@ -48,7 +50,7 @@ class Meta final {
 
             assert((!internal::MetaInfo::ctor<Type, Args...>));
             internal::MetaInfo::ctor<Type, Args...> = &node;
-            internal::MetaInfo::type<Type>->ctor = &node;
+            type->ctor = &node;
             return MetaFactory<Type>{};
         }
 
@@ -96,7 +98,7 @@ class Meta final {
             assert(!duplicate(HashedString{str}, node.next));
             assert((!internal::MetaInfo::func<Type, std::integral_constant<Func *, Ptr>>));
             internal::MetaInfo::func<Type, std::integral_constant<Func *, Ptr>> = &node;
-            internal::MetaInfo::type<Type>->func = &node;
+            type->func = &node;
             return MetaFactory<Type>{};
         }
     };
@@ -107,9 +109,11 @@ class Meta final {
 
         template<typename Type, Type Class:: *Member, typename... Property>
         static auto data(const char *str, Property &&... property) ENTT_NOEXCEPT {
+            auto * const type = internal::MetaInfo::type<Class>;
+
             static internal::MetaDataNode node{
                 HashedString{str},
-                internal::MetaInfo::type<Class>->data,
+                type->data,
                 properties<Class, std::integral_constant<Type Class:: *, Member>>(std::forward<Property>(property)...),
                 std::is_const<Type>::value,
                 &internal::MetaInfo::resolve<Type>,
@@ -129,17 +133,18 @@ class Meta final {
             assert(!duplicate(HashedString{str}, node.next));
             assert((!internal::MetaInfo::data<Class, std::integral_constant<Type Class:: *, Member>>));
             internal::MetaInfo::data<Class, std::integral_constant<Type Class:: *, Member>> = &node;
-            internal::MetaInfo::type<Class>->data = &node;
+            type->data = &node;
             return MetaFactory<Class>{};
         }
 
         template<typename Type, Type Class:: *Member, typename... Property>
         static auto func(const char *str, Property &&... property) ENTT_NOEXCEPT {
             using helper_type = MemberFuncHelper<Class, Type, Member>;
+            auto * const type = internal::MetaInfo::type<Class>;
 
             static internal::MetaFuncNode node{
                 HashedString{str},
-                internal::MetaInfo::type<Class>->func,
+                type->func,
                 properties<Class, std::integral_constant<Type Class:: *, Member>>(std::forward<Property>(property)...),
                 helper_type::size,
                 &internal::MetaInfo::resolve<typename helper_type::return_type>,
@@ -156,7 +161,7 @@ class Meta final {
             assert(!duplicate(HashedString{str}, node.next));
             assert((!internal::MetaInfo::func<Class, std::integral_constant<Type Class:: *, Member>>));
             internal::MetaInfo::func<Class, std::integral_constant<Type Class:: *, Member>> = &node;
-            internal::MetaInfo::type<Class>->func = &node;
+            type->func = &node;
             return MetaFactory<Class>{};
         }
     };
