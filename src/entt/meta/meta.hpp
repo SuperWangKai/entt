@@ -82,9 +82,9 @@ MetaPropNode * MetaInfo::prop = nullptr;
 
 struct MetaPropNode final {
     MetaPropNode * const next;
-    const MetaAny &(* const key)() ENTT_NOEXCEPT;
-    const MetaAny &(* const value)() ENTT_NOEXCEPT;
-    MetaProp *(* const meta)() ENTT_NOEXCEPT;
+    const MetaAny &(* const key)();
+    const MetaAny &(* const value)();
+    MetaProp *(* const meta)();
 };
 
 
@@ -93,17 +93,17 @@ struct MetaCtorNode final {
     MetaCtorNode * const next;
     MetaPropNode * const prop;
     const size_type size;
-    MetaTypeNode *(* const arg)(size_type) ENTT_NOEXCEPT;
-    bool(* const accept)(const MetaTypeNode ** const) ENTT_NOEXCEPT;
+    MetaTypeNode *(* const arg)(size_type);
+    bool(* const accept)(const MetaTypeNode ** const);
     MetaAny(* const invoke)(const MetaAny * const);
-    MetaCtor *(* const meta)() ENTT_NOEXCEPT;
+    MetaCtor *(* const meta)();
 };
 
 
 struct MetaDtorNode final {
     MetaPropNode * const prop;
     void(* const invoke)(void *);
-    MetaDtor *(* const meta)() ENTT_NOEXCEPT;
+    MetaDtor *(* const meta)();
 };
 
 
@@ -112,11 +112,11 @@ struct MetaDataNode final {
     MetaDataNode * const next;
     MetaPropNode * const prop;
     const bool constant;
-    MetaTypeNode *(* const type)() ENTT_NOEXCEPT;
+    MetaTypeNode *(* const type)();
     void(* const set)(void *, const MetaAny &);
-    MetaAny(* const get)(const void *) ENTT_NOEXCEPT;
-    bool(* const accept)(const MetaTypeNode * const) ENTT_NOEXCEPT;
-    MetaData *(* const meta)() ENTT_NOEXCEPT;
+    MetaAny(* const get)(const void *);
+    bool(* const accept)(const MetaTypeNode * const);
+    MetaData *(* const meta)();
 };
 
 
@@ -126,12 +126,12 @@ struct MetaFuncNode final {
     MetaFuncNode * const next;
     MetaPropNode * const prop;
     const size_type size;
-    MetaTypeNode *(* const ret)() ENTT_NOEXCEPT;
-    MetaTypeNode *(* const arg)(size_type) ENTT_NOEXCEPT;
-    bool(* const accept)(const MetaTypeNode ** const) ENTT_NOEXCEPT;
+    MetaTypeNode *(* const ret)();
+    MetaTypeNode *(* const arg)(size_type);
+    bool(* const accept)(const MetaTypeNode ** const);
     MetaAny(* const cinvoke)(const void *, const MetaAny *);
     MetaAny(* const invoke)(void *, const MetaAny *);
-    MetaFunc *(* const meta)() ENTT_NOEXCEPT;
+    MetaFunc *(* const meta)();
 };
 
 
@@ -139,7 +139,7 @@ struct MetaTypeNode final {
     const HashedString name;
     MetaTypeNode * const next;
     MetaPropNode * const prop;
-    MetaType *(* const meta)() ENTT_NOEXCEPT;
+    MetaType *(* const meta)();
     MetaCtorNode *ctor;
     MetaDtorNode *dtor;
     MetaDataNode *data;
@@ -615,7 +615,7 @@ MetaTypeNode * MetaInfo::resolve() ENTT_NOEXCEPT {
             {},
             MetaInfo::type<>,
             nullptr,
-            []() ENTT_NOEXCEPT -> MetaType * {
+            []() -> MetaType * {
                 return nullptr;
             }
         };

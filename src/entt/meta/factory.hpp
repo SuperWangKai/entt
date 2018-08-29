@@ -30,17 +30,17 @@ class Meta final {
                 internal::MetaInfo::type<Type>->ctor,
                 properties<Type, Args...>(std::forward<Property>(property)...),
                 sizeof...(Args),
-                [](typename internal::MetaCtorNode::size_type index) ENTT_NOEXCEPT {
+                [](typename internal::MetaCtorNode::size_type index) {
                     return std::array<internal::MetaTypeNode *, sizeof...(Args)>{{internal::MetaInfo::resolve<Args>()...}}[index];
                 },
-                [](const internal::MetaTypeNode ** const types) ENTT_NOEXCEPT {
+                [](const internal::MetaTypeNode ** const types) {
                     std::array<internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo::resolve<Args>()...}};
                     return std::equal(args.cbegin(), args.cend(), types);
                 },
                 [](const MetaAny * const any) {
                     return constructor<Type, Args...>(any, std::make_index_sequence<sizeof...(Args)>{});
                 },
-                []() ENTT_NOEXCEPT {
+                []() {
                     static MetaCtor meta{&node};
                     return &meta;
                 }
@@ -59,7 +59,7 @@ class Meta final {
                 [](void *instance) {
                     (*Func)(*static_cast<Type *>(instance));
                 },
-                []() ENTT_NOEXCEPT {
+                []() {
                     static MetaDtor meta{&node};
                     return &meta;
                 }
@@ -86,7 +86,7 @@ class Meta final {
                 &helper_type::accept,
                 &helper_type::cinvoke,
                 &helper_type::invoke,
-                []() ENTT_NOEXCEPT {
+                []() {
                     static MetaFunc meta{&node};
                     return &meta;
                 }
@@ -111,13 +111,13 @@ class Meta final {
                 std::is_const<Type>::value,
                 &internal::MetaInfo::resolve<Type>,
                 &setter<Class, Type, Member>,
-                [](const void *instance) ENTT_NOEXCEPT {
+                [](const void *instance) {
                     return MetaAny{static_cast<const Class *>(instance)->*Member};
                 },
-                [](const internal::MetaTypeNode * const other) ENTT_NOEXCEPT {
+                [](const internal::MetaTypeNode * const other) {
                     return other == internal::MetaInfo::resolve<Type>();
                 },
-                []() ENTT_NOEXCEPT {
+                []() {
                     static MetaData meta{&node};
                     return &meta;
                 }
@@ -144,7 +144,7 @@ class Meta final {
                 &helper_type::accept,
                 &helper_type::cinvoke,
                 &helper_type::invoke,
-                []() ENTT_NOEXCEPT {
+                []() {
                     static MetaFunc meta{&node};
                     return &meta;
                 }
@@ -166,11 +166,11 @@ class Meta final {
         using return_type = Ret;
         static constexpr auto size = sizeof...(Args);
 
-        static auto arg(typename internal::MetaFuncNode::size_type index) ENTT_NOEXCEPT {
+        static auto arg(typename internal::MetaFuncNode::size_type index) {
             return std::array<internal::MetaTypeNode *, sizeof...(Args)>{{internal::MetaInfo::resolve<Args>()...}}[index];
         }
 
-        static auto accept(const internal::MetaTypeNode ** const types) ENTT_NOEXCEPT {
+        static auto accept(const internal::MetaTypeNode ** const types) {
             std::array<internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo::resolve<Args>()...}};
             return std::equal(args.cbegin(), args.cend(), types);
         }
@@ -320,13 +320,13 @@ class Meta final {
 
         static internal::MetaPropNode node{
             properties<Dispatch...>(other...),
-            []() ENTT_NOEXCEPT -> const MetaAny & {
+            []() -> const MetaAny & {
                 return key;
             },
-            []() ENTT_NOEXCEPT -> const MetaAny & {
+            []() -> const MetaAny & {
                 return value;
             },
-            []() ENTT_NOEXCEPT {
+            []() {
                 static MetaProp meta{&node};
                 return &meta;
             }
