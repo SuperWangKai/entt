@@ -787,7 +787,7 @@ MetaTypeNode * MetaInfo::resolve() ENTT_NOEXCEPT {
     if(!type<actual_type>) {
         static MetaTypeNode node{
             {},
-            MetaInfo::type<>,
+            nullptr,
             nullptr,
             &TypeHelper<actual_type>::destroy,
             []() -> MetaType * {
@@ -796,7 +796,6 @@ MetaTypeNode * MetaInfo::resolve() ENTT_NOEXCEPT {
         };
 
         type<actual_type> = &node;
-        type<> = &node;
     }
 
     return type<actual_type>;
