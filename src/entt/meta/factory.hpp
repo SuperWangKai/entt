@@ -280,7 +280,7 @@ class Meta final {
     static MetaFactory<Type> reflect(HashedString name, Property &&... property) ENTT_NOEXCEPT {
         static internal::MetaTypeNode node{
             name,
-            internal::MetaInfo::type<>,
+            internal::MetaInfo::type<internal::MetaInfo>,
             properties<Type>(std::forward<Property>(property)...),
             internal::TypeHelper<Type>::destroy,
             []() {
@@ -292,7 +292,7 @@ class Meta final {
         assert(!duplicate(name, node.next));
         assert(!internal::MetaInfo::type<Type>);
         internal::MetaInfo::type<Type> = &node;
-        internal::MetaInfo::type<> = &node;
+        internal::MetaInfo::type<internal::MetaInfo> = &node;
         return MetaFactory<Type>{};
     }
 
@@ -311,7 +311,7 @@ public:
     }
 
     inline static MetaType * resolve(const char *str) ENTT_NOEXCEPT {
-        return internal::Utils::meta(HashedString{str}, internal::MetaInfo::type<>);
+        return internal::Utils::meta(HashedString{str}, internal::MetaInfo::type<internal::MetaInfo>);
     }
 };
 

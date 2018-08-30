@@ -34,22 +34,22 @@ struct MetaTypeNode;
 
 
 struct MetaInfo {
-    template<typename...>
+    template<typename>
     static MetaTypeNode *type;
 
-    template<typename...>
+    template<typename, typename...>
     static MetaCtorNode *ctor;
 
-    template<typename...>
+    template<typename, typename>
     static MetaDtorNode *dtor;
 
-    template<typename...>
+    template<typename, typename>
     static MetaDataNode *data;
 
-    template<typename...>
+    template<typename, typename>
     static MetaFuncNode *func;
 
-    template<typename...>
+    template<typename, typename...>
     static MetaPropNode *prop;
 
     template<typename Type>
@@ -57,27 +57,27 @@ struct MetaInfo {
 };
 
 
-template<typename...>
+template<typename>
 MetaTypeNode * MetaInfo::type = nullptr;
 
 
-template<typename...>
+template<typename, typename...>
 MetaCtorNode * MetaInfo::ctor = nullptr;
 
 
-template<typename...>
+template<typename, typename>
 MetaDtorNode * MetaInfo::dtor = nullptr;
 
 
-template<typename...>
+template<typename, typename>
 MetaDataNode * MetaInfo::data = nullptr;
 
 
-template<typename...>
+template<typename, typename>
 MetaFuncNode * MetaInfo::func = nullptr;
 
 
-template<typename...>
+template<typename, typename...>
 MetaPropNode * MetaInfo::prop = nullptr;
 
 
@@ -787,7 +787,7 @@ MetaTypeNode * MetaInfo::resolve() ENTT_NOEXCEPT {
     if(!type<actual_type>) {
         static MetaTypeNode node{
             {},
-            MetaInfo::type<>,
+            MetaInfo::type<MetaInfo>,
             nullptr,
             &TypeHelper<actual_type>::destroy,
             []() -> MetaType * {
@@ -796,7 +796,7 @@ MetaTypeNode * MetaInfo::resolve() ENTT_NOEXCEPT {
         };
 
         type<actual_type> = &node;
-        type<> = &node;
+        type<MetaInfo> = &node;
     }
 
     return type<actual_type>;
