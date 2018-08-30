@@ -657,6 +657,15 @@ struct FunctionHelper<Ret(Args...)> {
 };
 
 
+template<typename Type, typename... Args>
+struct CtorHelper {
+    template<std::size_t... Indexes>
+    static MetaAny construct(const MetaAny * const any, std::index_sequence<Indexes...>) {
+        return MetaAny{Type{(any+Indexes)->to<std::decay_t<Args>>()...}};
+    }
+};
+
+
 template<typename, typename = void>
 struct ReflectionHelper;
 

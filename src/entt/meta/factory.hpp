@@ -63,7 +63,7 @@ class Meta final {
                 &helper_type::arg,
                 &helper_type::accept,
                 [](const MetaAny * const any) {
-                    return constructor<Type, Args...>(any, std::make_index_sequence<helper_type::size>{});
+                    return internal::CtorHelper<Type, Args...>::construct(any, std::make_index_sequence<helper_type::size>{});
                 },
                 []() {
                     static MetaCtor meta{&node};
@@ -274,11 +274,6 @@ class Meta final {
         assert((!internal::MetaInfo::prop<Dispatch..., Property, Other...>));
         internal::MetaInfo::prop<Dispatch..., Property, Other...> = &node;
         return &node;
-    }
-
-    template<typename Class, typename... Args, std::size_t... Indexes>
-    static MetaAny constructor(const MetaAny * const any, std::index_sequence<Indexes...>) {
-        return MetaAny{Class{(any+Indexes)->to<std::decay_t<Args>>()...}};
     }
 
     template<typename Type, typename... Property>
