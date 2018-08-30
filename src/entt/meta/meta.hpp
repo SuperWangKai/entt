@@ -631,7 +631,7 @@ struct TypeHelper {
 
 template<>
 struct TypeHelper<void> {
-     [[noreturn]] static void destroy(void *) {
+     static void destroy(void *) {
         assert(false);
     }
 };
@@ -686,7 +686,7 @@ struct ReflectionHelper<std::integral_constant<const Type Class:: *, Member>, st
     static constexpr auto readonly = true;
     static constexpr auto shared = false;
 
-    [[noreturn]] static void setter(void *, const MetaAny &) {
+    static void setter(void *, const MetaAny &) {
         assert(false);
     }
 };
@@ -711,8 +711,9 @@ struct ReflectionHelper<std::integral_constant<Ret(Class:: *)(Args...), Member>,
     }
 
     template<std::size_t... Indexes>
-    [[noreturn]] static MetaAny invoke(char, const void *, const MetaAny *, std::index_sequence<Indexes...>) {
+    static MetaAny invoke(char, const void *, const MetaAny *, std::index_sequence<Indexes...>) {
         assert(false);
+        return MetaAny{};
     }
 };
 
@@ -753,7 +754,7 @@ struct ReflectionHelper<std::integral_constant<const Type *, Data>, std::enable_
     static constexpr auto readonly = true;
     static constexpr auto shared = true;
 
-    [[noreturn]] static void setter(void *, const MetaAny &) {
+    static void setter(void *, const MetaAny &) {
         assert(false);
     }
 };
