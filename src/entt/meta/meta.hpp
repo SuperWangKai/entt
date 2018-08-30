@@ -744,7 +744,7 @@ struct ReflectionHelper<std::integral_constant<const Type *, Data>, std::enable_
     static constexpr auto readonly = true;
     static constexpr auto shared = true;
 
-    [[noreturn]] static void setter(void *, const MetaAny &any) {
+    [[noreturn]] static void setter(void *, const MetaAny &) {
         assert(false);
     }
 };

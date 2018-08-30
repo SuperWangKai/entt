@@ -99,6 +99,12 @@ struct A {
 };
 
 
+A construct(int i, char c) {
+    std::cout << "construct A: " << i << "/" << c << std::endl;
+    return A{i, c};
+}
+
+
 void destroy(A &a) {
     std::cout << "destroy A: " << a.i << "/" << a.c << std::endl;
     a.~A();
@@ -162,11 +168,11 @@ TEST(Meta, TODO) {
 
     ASSERT_EQ(sMeta->data("z")->get(&s).to<int>(), 2);
     ASSERT_EQ(sMeta->data("sd")->get(nullptr).to<int>(), 1);
-    //ASSERT_EQ(sMeta->data("csd")->get(nullptr).to<int>(), 1);
+    ASSERT_EQ(sMeta->data("csd")->get(nullptr).to<int>(), 1);
 
     sMeta->data("sd")->set(nullptr, 3);
 
-    //ASSERT_EQ(sMeta->data("sd")->get(nullptr).to<int>(), 3);
+    ASSERT_EQ(sMeta->data("sd")->get(nullptr).to<int>(), 3);
 
     ASSERT_EQ(s.i, 3);
     ASSERT_EQ(s.j, 42);
@@ -210,7 +216,10 @@ TEST(Meta, TODO) {
     ASSERT_EQ(sMeta->func("serialize")->size(), 1);
     ASSERT_EQ(tMeta->func("serialize")->size(), 1);
 
-    entt::Meta::reflect<A>("A").ctor<int, char>().dtor<&destroy>();
+    entt::Meta::reflect<A>("A")
+            .ctor<A(int, char), &construct>()
+            .dtor<&destroy>();
+
     auto any = entt::Meta::resolve<A>()->construct(42, 'c');
 
     ASSERT_EQ(any.to<A>().i, 42);

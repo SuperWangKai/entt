@@ -24,23 +24,46 @@ inline auto property(Key &&key, Value &&value) {
 class Meta final {
     template<typename Type, typename = void>
     struct MetaFactory {
+        template<typename Func, Func *Ptr, typename... Property>
+        static auto ctor(Property &&... property) ENTT_NOEXCEPT {
+            using helper_type = internal::ReflectionHelper<std::integral_constant<Func *, Ptr>>;
+            static_assert(std::is_same<typename helper_type::return_type, Type>::value, "!");
+            auto * const type = internal::MetaInfo::type<Type>;
+
+            static internal::MetaCtorNode node{
+                type->ctor,
+                properties<Type, std::integral_constant<Func *, Ptr>>(std::forward<Property>(property)...),
+                helper_type::size,
+                &helper_type::arg,
+                &helper_type::accept,
+                [](const MetaAny * const any) {
+                    return helper_type::invoke(0, nullptr, any, std::make_index_sequence<helper_type::size>{});
+                },
+                []() {
+                    static MetaCtor meta{&node};
+                    return &meta;
+                }
+            };
+
+            assert((!internal::MetaInfo::ctor<Type, std::integral_constant<Func *, Ptr>>));
+            internal::MetaInfo::ctor<Type, std::integral_constant<Func *, Ptr>> = &node;
+            type->ctor = &node;
+            return MetaFactory<Type>{};
+        }
+
         template<typename... Args, typename... Property>
         static auto ctor(Property &&... property) ENTT_NOEXCEPT {
+            using helper_type = internal::FunctionHelper<void(Args...)>;
             auto * const type = internal::MetaInfo::type<Type>;
 
             static internal::MetaCtorNode node{
                 type->ctor,
                 properties<Type, Args...>(std::forward<Property>(property)...),
-                sizeof...(Args),
-                [](typename internal::MetaCtorNode::size_type index) {
-                    return std::array<internal::MetaTypeNode *, sizeof...(Args)>{{internal::MetaInfo::resolve<Args>()...}}[index];
-                },
-                [](const internal::MetaTypeNode ** const types) {
-                    std::array<internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo::resolve<Args>()...}};
-                    return std::equal(args.cbegin(), args.cend(), types);
-                },
+                helper_type::size,
+                &helper_type::arg,
+                &helper_type::accept,
                 [](const MetaAny * const any) {
-                    return constructor<Type, Args...>(any, std::make_index_sequence<sizeof...(Args)>{});
+                    return constructor<Type, Args...>(any, std::make_index_sequence<helper_type::size>{});
                 },
                 []() {
                     static MetaCtor meta{&node};
