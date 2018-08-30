@@ -22,6 +22,8 @@ inline auto property(Key &&key, Value &&value) {
 
 
 class Meta final {
+    struct MetaChain;
+
     template<typename Type, typename = void>
     struct MetaFactory {
         template<typename Func, Func *Ptr, typename... Property>
@@ -280,7 +282,7 @@ class Meta final {
     static MetaFactory<Type> reflect(HashedString name, Property &&... property) ENTT_NOEXCEPT {
         static internal::MetaTypeNode node{
             name,
-            internal::MetaInfo::type<internal::MetaInfo>,
+            internal::MetaInfo::type<MetaChain>,
             properties<Type>(std::forward<Property>(property)...),
             internal::TypeHelper<Type>::destroy,
             []() {
@@ -292,7 +294,7 @@ class Meta final {
         assert(!duplicate(name, node.next));
         assert(!internal::MetaInfo::type<Type>);
         internal::MetaInfo::type<Type> = &node;
-        internal::MetaInfo::type<internal::MetaInfo> = &node;
+        internal::MetaInfo::type<MetaChain> = &node;
         return MetaFactory<Type>{};
     }
 
@@ -311,7 +313,7 @@ public:
     }
 
     inline static MetaType * resolve(const char *str) ENTT_NOEXCEPT {
-        return internal::Utils::meta(HashedString{str}, internal::MetaInfo::type<internal::MetaInfo>);
+        return internal::Utils::meta(HashedString{str}, internal::MetaInfo::type<MetaChain>);
     }
 };
 
