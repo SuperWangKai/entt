@@ -114,7 +114,6 @@ struct MetaDataNode final {
     MetaPropNode * const prop;
     const bool readonly;
     const bool shared;
-    const bool ext;
     MetaTypeNode *(* const type)();
     void(* const set)(void *, const MetaAny &);
     MetaAny(* const get)(const void *);
@@ -131,7 +130,6 @@ struct MetaFuncNode final {
     const size_type size;
     const bool constant;
     const bool shared;
-    const bool ext;
     MetaTypeNode *(* const ret)();
     MetaTypeNode *(* const arg)(size_type);
     bool(* const accept)(const MetaTypeNode ** const);
@@ -424,8 +422,7 @@ class MetaData {
 
 public:
     inline const char * name() const ENTT_NOEXCEPT {
-        const char *str = node->name;
-        return str ? str : "";
+        return node->name;
     }
 
     inline bool readonly() const ENTT_NOEXCEPT {
@@ -434,10 +431,6 @@ public:
 
     inline bool shared() const ENTT_NOEXCEPT {
         return node->shared;
-    }
-
-    inline bool ext() const ENTT_NOEXCEPT {
-        return node->ext;
     }
 
     inline MetaType * type() const ENTT_NOEXCEPT {
@@ -455,7 +448,7 @@ public:
     }
 
     inline MetaAny get(const void *instance) const ENTT_NOEXCEPT {
-        return instance ? node->get(instance) : MetaAny{};
+        return node->get(instance);
     }
 
     template<typename Op>
@@ -484,8 +477,7 @@ public:
     using size_type = typename internal::MetaCtorNode::size_type;
 
     inline const char * name() const ENTT_NOEXCEPT {
-        const char *str = node->name;
-        return str ? str : "";
+        return node->name;
     }
 
     inline size_type size() const ENTT_NOEXCEPT {
@@ -498,10 +490,6 @@ public:
 
     inline bool shared() const ENTT_NOEXCEPT {
         return node->shared;
-    }
-
-    inline bool ext() const ENTT_NOEXCEPT {
-        return node->ext;
     }
 
     inline MetaType * ret() const ENTT_NOEXCEPT {
@@ -521,13 +509,13 @@ public:
     template<typename... Args>
     MetaAny invoke(const void *instance, Args &&... args) const {
         std::array<const MetaAny, sizeof...(Args)> any{{std::forward<Args>(args)...}};
-        return instance && accept<Args...>() ? node->cinvoke(instance, any.data()) : MetaAny{};
+        return accept<Args...>() ? node->cinvoke(instance, any.data()) : MetaAny{};
     }
 
     template<typename... Args>
     MetaAny invoke(void *instance, Args &&... args) {
         std::array<const MetaAny, sizeof...(Args)> any{{std::forward<Args>(args)...}};
-        return instance && accept<Args...>() ? node->invoke(instance, any.data()) : MetaAny{};
+        return accept<Args...>() ? node->invoke(instance, any.data()) : MetaAny{};
     }
 
     template<typename Op>
@@ -649,40 +637,12 @@ struct TypeHelper<void> {
 };
 
 
-template<typename...>
-struct DataMemberHelper;
-
-
-template<typename Class, typename Type, Type Class:: *Member>
-struct DataMemberHelper<Class, std::integral_constant<Type Class:: *, Member>> {
-    static constexpr auto readonly = false;
-    static constexpr auto shared = false;
-    static constexpr auto ext = false;
-
-    static void setter(void *instance, const MetaAny &any) {
-        static_cast<Class *>(instance)->*Member = any.to<std::decay_t<Type>>();
-    }
-};
-
-
-template<typename Class, typename Type, const Type Class:: *Member>
-struct DataMemberHelper<Class, std::integral_constant<const Type Class:: *, Member>> {
-    static constexpr auto readonly = true;
-    static constexpr auto shared = false;
-    static constexpr auto ext = false;
-
-    [[noreturn]] static void setter(void *, const MetaAny &) {
-        assert(false);
-    }
-};
-
-
 template<typename>
-struct MemberFunctionBaseHelper;
+struct FunctionHelper;
 
 
 template<typename Ret, typename... Args>
-struct MemberFunctionBaseHelper<Ret(Args...)> {
+struct FunctionHelper<Ret(Args...)> {
     using return_type = Ret;
     static constexpr auto size = sizeof...(Args);
 
@@ -697,15 +657,36 @@ struct MemberFunctionBaseHelper<Ret(Args...)> {
 };
 
 
-template<typename...>
-struct MemberFunctionHelper;
+template<typename, typename = void>
+struct ReflectionHelper;
+
+
+template<typename Class, typename Type, Type Class:: *Member>
+struct ReflectionHelper<std::integral_constant<Type Class:: *, Member>, std::enable_if_t<std::is_member_object_pointer<Type Class:: *>::value>> {
+    static constexpr auto readonly = false;
+    static constexpr auto shared = false;
+
+    static void setter(void *instance, const MetaAny &any) {
+        static_cast<Class *>(instance)->*Member = any.to<std::decay_t<Type>>();
+    }
+};
+
+
+template<typename Class, typename Type, const Type Class:: *Member>
+struct ReflectionHelper<std::integral_constant<const Type Class:: *, Member>, std::enable_if_t<std::is_member_object_pointer<const Type Class:: *>::value>> {
+    static constexpr auto readonly = true;
+    static constexpr auto shared = false;
+
+    [[noreturn]] static void setter(void *, const MetaAny &) {
+        assert(false);
+    }
+};
 
 
 template<typename Class, typename Ret, typename... Args, Ret(Class:: *Member)(Args...)>
-struct MemberFunctionHelper<Class, std::integral_constant<Ret(Class:: *)(Args...), Member>>: MemberFunctionBaseHelper<Ret(Args...)> {
+struct ReflectionHelper<std::integral_constant<Ret(Class:: *)(Args...), Member>, std::enable_if_t<std::is_member_function_pointer<Ret(Class:: *)(Args...)>::value>>: FunctionHelper<Ret(Args...)> {
     static constexpr auto constant = false;
     static constexpr auto shared = false;
-    static constexpr auto ext = false;
 
     template<std::size_t... Indexes>
     static auto invoke(int, void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
@@ -728,10 +709,9 @@ struct MemberFunctionHelper<Class, std::integral_constant<Ret(Class:: *)(Args...
 
 
 template<typename Class, typename Ret, typename... Args, Ret(Class:: *Member)(Args...) const>
-struct MemberFunctionHelper<Class, std::integral_constant<Ret(Class:: *)(Args...) const, Member>>: MemberFunctionBaseHelper<Ret(Args...)> {
+struct ReflectionHelper<std::integral_constant<Ret(Class:: *)(Args...) const, Member>, std::enable_if_t<std::is_member_function_pointer<Ret(Class:: *)(Args...) const>::value>>: FunctionHelper<Ret(Args...)> {
     static constexpr auto constant = true;
     static constexpr auto shared = false;
-    static constexpr auto ext = false;
 
     template<std::size_t... Indexes>
     static auto invoke(int, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
@@ -748,48 +728,43 @@ struct MemberFunctionHelper<Class, std::integral_constant<Ret(Class:: *)(Args...
 };
 
 
-template<typename Class, typename Ret, typename... Args, Ret(*Func)(Class &, Args...)>
-struct MemberFunctionHelper<Class, std::integral_constant<Ret(*)(Class &, Args...), Func>>: MemberFunctionBaseHelper<Ret(Args...)> {
-    static constexpr auto constant = false;
-    static constexpr auto shared = false;
-    static constexpr auto ext = true;
+template<typename Type, Type *Data>
+struct ReflectionHelper<std::integral_constant<Type *, Data>, std::enable_if_t<!std::is_function<Type>::value>> {
+    static constexpr auto readonly = false;
+    static constexpr auto shared = true;
 
-    template<std::size_t... Indexes>
-    static auto invoke(int, void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
-    -> decltype(MetaAny{(*Func)(*static_cast<Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
-    {
-        return MetaAny{(*Func)(*static_cast<Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)};
+    static void setter(void *, const MetaAny &any) {
+        *Data = any.to<std::decay_t<Type>>();
     }
+};
 
-    template<std::size_t... Indexes>
-    static auto invoke(char, void *instance, const MetaAny *any, std::index_sequence<Indexes...>) {
-        (*Func)(*static_cast<Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...);
-        return MetaAny{};
-    }
 
-    template<std::size_t... Indexes>
-    [[noreturn]] static MetaAny invoke(char, const void *, const MetaAny *, std::index_sequence<Indexes...>) {
+template<typename Type, const Type *Data>
+struct ReflectionHelper<std::integral_constant<const Type *, Data>, std::enable_if_t<!std::is_function<const Type>::value>> {
+    static constexpr auto readonly = true;
+    static constexpr auto shared = true;
+
+    [[noreturn]] static void setter(void *, const MetaAny &any) {
         assert(false);
     }
 };
 
 
-template<typename Class, typename Ret, typename... Args, Ret(*Func)(const Class &, Args...)>
-struct MemberFunctionHelper<Class, std::integral_constant<Ret(*)(const Class &, Args...), Func>>: MemberFunctionBaseHelper<Ret(Args...)> {
-    static constexpr auto constant = true;
-    static constexpr auto shared = false;
-    static constexpr auto ext = true;
+template<typename Ret, typename... Args, Ret(*Func)(Args...)>
+struct ReflectionHelper<std::integral_constant<Ret(*)(Args...), Func>, std::enable_if_t<std::is_function<Ret(Args...)>::value>>: FunctionHelper<Ret(Args...)> {
+    static constexpr auto constant = false;
+    static constexpr auto shared = true;
 
     template<std::size_t... Indexes>
-    static auto invoke(int, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
-    -> decltype(MetaAny{(*Func)(*static_cast<const Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
+    static auto invoke(int, const void *, const MetaAny *any, std::index_sequence<Indexes...>)
+    -> decltype(MetaAny{(*Func)((any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
     {
-        return MetaAny{(*Func)(*static_cast<const Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)};
+        return MetaAny{(*Func)((any+Indexes)->to<std::decay_t<Args>>()...)};
     }
 
     template<std::size_t... Indexes>
-    static auto invoke(char, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>) {
-        (*Func)(*static_cast<const Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...);
+    static auto invoke(char, const void *, const MetaAny *any, std::index_sequence<Indexes...>) {
+        (*Func)((any+Indexes)->to<std::decay_t<Args>>()...);
         return MetaAny{};
     }
 };

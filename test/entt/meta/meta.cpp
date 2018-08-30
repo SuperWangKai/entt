@@ -10,7 +10,7 @@ bool equal(const Type &value) {
 
 TEST(Meta, Fundamental) {
     entt::Meta::reflect<char>("Char")
-            .func<bool(const char &), &equal<char, 'c'>>(entt::meta_ext_t{}, "equal");
+            .func<bool(const char &), &equal<char, 'c'>>("equal");
 }
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>OLD
@@ -18,14 +18,14 @@ TEST(Meta, Fundamental) {
 #include <iostream>
 
 void print(unsigned int n, entt::MetaType *meta) {
-    std::cout << std::string(n, ' ') << "class: " << meta->name() << std::endl;
+    std::cout << std::string(n, ' ') << "class: " << (meta->name() ? meta->name() : "") << std::endl;
 
     meta->properties([n=n+2](auto *prop) {
         std::cout << std::string(n, ' ') << "prop: " << static_cast<const char *>(prop->key().template to<entt::HashedString>()) << "/" << prop->value().template to<int>() << std::endl;
     });
 
     meta->data([n=n+2](auto *data) {
-        std::cout << std::string(n, ' ') << "data: " << data->name() << std::endl;
+        std::cout << std::string(n, ' ') << "data: " << (data->name() ? data->name() : "") << std::endl;
 
         data->properties([n=n+2](auto *prop) {
             std::cout << std::string(n, ' ') << "prop: " << static_cast<const char *>(prop->key().template to<entt::HashedString>()) << "/" << prop->value().template to<int>() << std::endl;
@@ -37,7 +37,7 @@ void print(unsigned int n, entt::MetaType *meta) {
     });
 
     meta->func([n=n+2](auto *func) {
-        std::cout << std::string(n, ' ') << "func: " << func->name() << std::endl;
+        std::cout << std::string(n, ' ') << "func: " << (func->name() ? func->name() : "") << std::endl;
 
         func->properties([n=n+2](auto *prop) {
             std::cout << std::string(n, ' ') << "prop: " << static_cast<const char *>(prop->key().template to<entt::HashedString>()) << "/" << prop->value().template to<int>() << std::endl;
@@ -75,7 +75,15 @@ struct S {
     int i;
     int j;
     const int * const k{nullptr};
+    const int z{2};
+
+    static int sd;
+    static const int csd;
 };
+
+
+int S::sd = 1;
+const int S::csd = 1;
 
 
 struct T {
@@ -97,12 +105,12 @@ void destroy(A &a) {
 }
 
 
-void serialize(const S &) {
+void serialize(const S *) {
     std::cout << "serializing S" << std::endl;
 }
 
 
-void serialize(T &) {
+void serialize(T *) {
     std::cout << "serializing T" << std::endl;
 }
 
@@ -112,21 +120,24 @@ TEST(Meta, TODO) {
             .ctor<>()
             .ctor<int, int>()
             .ctor<const S &>()
-            .data<int, &S::i>("i")
-            .data<int, &S::j>("j")
-            .data<const int * const, &S::k>("k")
-            .func<void(), &S::f>("f")
-            .func<S *(int), &S::g>("g")
-            .func<const S *(int) const, &S::g>("cg")
-            .func<int(int) const, &S::h>("h")
-            .func<void(const S &), &serialize>(entt::meta_ext_t{}, "serialize", entt::property(entt::HashedString{"3"}, 3))
+            .member<int, &S::i>("i")
+            .member<int, &S::j>("j")
+            .member<const int * const, &S::k>("k")
+            .member<const int, &S::z>("z")
+            .member<void(), &S::f>("f")
+            .member<S *(int), &S::g>("g")
+            .member<const S *(int) const, &S::g>("cg")
+            .member<int(int) const, &S::h>("h")
+            .func<void(const S *), &serialize>("serialize", entt::property(entt::HashedString{"3"}, 3))
+            .data<int, &S::sd>("sd")
+            .data<const int, &S::csd>("csd")
             ;
 
     entt::Meta::reflect<T>("bar")
-            .data<S, &T::s1>("s1")
-            .data<const S, &T::s2>("s2")
-            .func<void(const S &), &T::f>("f")
-            .func<void(T &), &serialize>(entt::meta_ext_t{}, "serialize")
+            .member<S, &T::s1>("s1")
+            .member<const S, &T::s2>("s2")
+            .member<void(const S &), &T::f>("f")
+            .func<void(T *), &serialize>("serialize")
             ;
 
     ASSERT_NE(entt::Meta::resolve<S>(), nullptr);
@@ -148,6 +159,14 @@ TEST(Meta, TODO) {
     S s{0, 0};
     sMeta->data("i")->set(&s, 3);
     sMeta->data("j")->set(&s, 42);
+
+    ASSERT_EQ(sMeta->data("z")->get(&s).to<int>(), 2);
+    ASSERT_EQ(sMeta->data("sd")->get(nullptr).to<int>(), 1);
+    //ASSERT_EQ(sMeta->data("csd")->get(nullptr).to<int>(), 1);
+
+    sMeta->data("sd")->set(nullptr, 3);
+
+    //ASSERT_EQ(sMeta->data("sd")->get(nullptr).to<int>(), 3);
 
     ASSERT_EQ(s.i, 3);
     ASSERT_EQ(s.j, 42);
@@ -188,8 +207,8 @@ TEST(Meta, TODO) {
     sMeta->func("serialize")->invoke(static_cast<const void *>(&s));
     tMeta->func("serialize")->invoke(&t);
 
-    ASSERT_EQ(sMeta->func("serialize")->size(), 0);
-    ASSERT_EQ(tMeta->func("serialize")->size(), 0);
+    ASSERT_EQ(sMeta->func("serialize")->size(), 1);
+    ASSERT_EQ(tMeta->func("serialize")->size(), 1);
 
     entt::Meta::reflect<A>("A").ctor<int, char>().dtor<&destroy>();
     auto any = entt::Meta::resolve<A>()->construct(42, 'c');

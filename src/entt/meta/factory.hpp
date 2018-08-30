@@ -15,9 +15,6 @@
 namespace entt {
 
 
-struct meta_ext_t {};
-
-
 template<typename Key, typename Value>
 inline auto property(Key &&key, Value &&value) {
     return std::make_pair(key, value);
@@ -77,9 +74,41 @@ class Meta final {
             return MetaFactory<Type>{};
         }
 
+        template<typename Data, Data *Ptr, typename... Property>
+        static auto data(const char *str, Property &&... property) ENTT_NOEXCEPT {
+            using helper_type = internal::ReflectionHelper<std::integral_constant<Data *, Ptr>>;
+            auto * const type = internal::MetaInfo::type<Type>;
+
+            static internal::MetaDataNode node{
+                HashedString{str},
+                type->data,
+                properties<Type, std::integral_constant<Data *, Ptr>>(std::forward<Property>(property)...),
+                helper_type::readonly,
+                helper_type::shared,
+                &internal::MetaInfo::resolve<Data>,
+                &helper_type::setter,
+                [](const void *) {
+                    return MetaAny{*Ptr};
+                },
+                [](const internal::MetaTypeNode * const other) {
+                    return other == internal::MetaInfo::resolve<Data>();
+                },
+                []() {
+                    static MetaData meta{&node};
+                    return &meta;
+                }
+            };
+
+            assert(!duplicate(HashedString{str}, node.next));
+            assert((!internal::MetaInfo::data<Type, std::integral_constant<Data *, Ptr>>));
+            internal::MetaInfo::data<Type, std::integral_constant<Data *, Ptr>> = &node;
+            type->data = &node;
+            return MetaFactory<Type>{};
+        }
+
         template<typename Func, Func *Ptr, typename... Property>
-        static auto func(meta_ext_t, const char *str, Property &&... property) ENTT_NOEXCEPT {
-            using helper_type = internal::MemberFunctionHelper<Type, std::integral_constant<Func *, Ptr>>;
+        static auto func(const char *str, Property &&... property) ENTT_NOEXCEPT {
+            using helper_type = internal::ReflectionHelper<std::integral_constant<Func *, Ptr>>;
             auto * const type = internal::MetaInfo::type<Type>;
 
             static internal::MetaFuncNode node{
@@ -89,7 +118,6 @@ class Meta final {
                 helper_type::size,
                 helper_type::constant,
                 helper_type::shared,
-                helper_type::ext,
                 &internal::MetaInfo::resolve<typename helper_type::return_type>,
                 &helper_type::arg,
                 &helper_type::accept,
@@ -118,8 +146,9 @@ class Meta final {
         using MetaFactory<Class, Class>::func;
 
         template<typename Type, Type Class:: *Member, typename... Property>
-        static auto data(const char *str, Property &&... property) ENTT_NOEXCEPT {
-            using helper_type = internal::DataMemberHelper<Class, std::integral_constant<Type Class:: *, Member>>;
+        static std::enable_if_t<std::is_member_object_pointer<Type Class:: *>::value, MetaFactory<Class>>
+        member(const char *str, Property &&... property) ENTT_NOEXCEPT {
+            using helper_type = internal::ReflectionHelper<std::integral_constant<Type Class:: *, Member>>;
             auto * const type = internal::MetaInfo::type<Class>;
 
             static internal::MetaDataNode node{
@@ -128,7 +157,6 @@ class Meta final {
                 properties<Class, std::integral_constant<Type Class:: *, Member>>(std::forward<Property>(property)...),
                 helper_type::readonly,
                 helper_type::shared,
-                helper_type::ext,
                 &internal::MetaInfo::resolve<Type>,
                 &helper_type::setter,
                 [](const void *instance) {
@@ -151,8 +179,9 @@ class Meta final {
         }
 
         template<typename Type, Type Class:: *Member, typename... Property>
-        static auto func(const char *str, Property &&... property) ENTT_NOEXCEPT {
-            using helper_type = internal::MemberFunctionHelper<Class, std::integral_constant<Type Class:: *, Member>>;
+        static std::enable_if_t<std::is_member_function_pointer<Type Class:: *>::value, MetaFactory<Class>>
+        member(const char *str, Property &&... property) ENTT_NOEXCEPT {
+            using helper_type = internal::ReflectionHelper<std::integral_constant<Type Class:: *, Member>>;
             auto * const type = internal::MetaInfo::type<Class>;
 
             static internal::MetaFuncNode node{
@@ -162,7 +191,6 @@ class Meta final {
                 helper_type::size,
                 helper_type::constant,
                 helper_type::shared,
-                helper_type::ext,
                 &internal::MetaInfo::resolve<typename helper_type::return_type>,
                 &helper_type::arg,
                 &helper_type::accept,

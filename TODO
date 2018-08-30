@@ -18,8 +18,6 @@
 * make view copyable/moveable
 * C++17. That's all.
 * meta: sort of meta view based on meta stuff to iterate entities, void * and meta info objects
-* meta: add support for static data members
-* meta: add support for static member functions
 * meta: add support for free functions as constructors
 * meta: add support for all free functions as destructor (not only void(*)(void *))
 * tag_t and the others, create constexpr var
