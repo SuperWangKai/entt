@@ -3,6 +3,7 @@
 
 
 #include <memory>
+#include <cassert>
 #include <cstddef>
 #include <utility>
 #include <type_traits>
@@ -111,7 +112,9 @@ struct MetaDataNode final {
     const HashedString name;
     MetaDataNode * const next;
     MetaPropNode * const prop;
-    const bool constant;
+    const bool readonly;
+    const bool shared;
+    const bool ext;
     MetaTypeNode *(* const type)();
     void(* const set)(void *, const MetaAny &);
     MetaAny(* const get)(const void *);
@@ -126,6 +129,9 @@ struct MetaFuncNode final {
     MetaFuncNode * const next;
     MetaPropNode * const prop;
     const size_type size;
+    const bool constant;
+    const bool shared;
+    const bool ext;
     MetaTypeNode *(* const ret)();
     MetaTypeNode *(* const arg)(size_type);
     bool(* const accept)(const MetaTypeNode ** const);
@@ -139,6 +145,7 @@ struct MetaTypeNode final {
     const HashedString name;
     MetaTypeNode * const next;
     MetaPropNode * const prop;
+    void(* const destroy)(void *);
     MetaType *(* const meta)();
     MetaCtorNode *ctor;
     MetaDtorNode *dtor;
@@ -206,7 +213,7 @@ private:
 struct Utils {
     template<typename Meta, typename Op, typename Node>
     static auto iterate(Op op, const Node *curr) ENTT_NOEXCEPT
-    -> decltype(op(std::declval<Meta *>()))
+    -> decltype(op(std::declval<Meta *>()), void())
     {
         while(curr) {
             op(curr->meta());
@@ -421,8 +428,16 @@ public:
         return str ? str : "";
     }
 
-    inline bool constant() const ENTT_NOEXCEPT {
-        return node->constant;
+    inline bool readonly() const ENTT_NOEXCEPT {
+        return node->readonly;
+    }
+
+    inline bool shared() const ENTT_NOEXCEPT {
+        return node->shared;
+    }
+
+    inline bool ext() const ENTT_NOEXCEPT {
+        return node->ext;
     }
 
     inline MetaType * type() const ENTT_NOEXCEPT {
@@ -475,6 +490,18 @@ public:
 
     inline size_type size() const ENTT_NOEXCEPT {
         return node->size;
+    }
+
+    inline bool constant() const ENTT_NOEXCEPT {
+        return node->constant;
+    }
+
+    inline bool shared() const ENTT_NOEXCEPT {
+        return node->shared;
+    }
+
+    inline bool ext() const ENTT_NOEXCEPT {
+        return node->ext;
     }
 
     inline MetaType * ret() const ENTT_NOEXCEPT {
@@ -548,11 +575,11 @@ public:
 
     template<typename Op>
     inline void dtor(Op op) const ENTT_NOEXCEPT {
-        op(node->dtor->meta());
+        return node->dtor ? op(node->dtor->meta()) : void();
     }
 
     inline MetaDtor * dtor() const ENTT_NOEXCEPT {
-        return node->dtor->meta();
+        return node->dtor ? node->dtor->meta() : nullptr;
     }
 
     template<typename Op>
@@ -585,7 +612,7 @@ public:
     }
 
     inline void destroy(void *instance) {
-        return instance ? node->dtor->invoke(instance) : void();
+        return node->dtor ? node->dtor->invoke(instance) : node->destroy(instance);
     }
 
     template<typename Op>
@@ -607,6 +634,168 @@ namespace internal {
 
 
 template<typename Type>
+struct TypeHelper {
+    static void destroy(void *instance) {
+        static_cast<Type *>(instance)->~Type();
+    }
+};
+
+
+template<>
+struct TypeHelper<void> {
+     [[noreturn]] static void destroy(void *) {
+        assert(false);
+    }
+};
+
+
+template<typename...>
+struct DataMemberHelper;
+
+
+template<typename Class, typename Type, Type Class:: *Member>
+struct DataMemberHelper<Class, std::integral_constant<Type Class:: *, Member>> {
+    static constexpr auto readonly = false;
+    static constexpr auto shared = false;
+    static constexpr auto ext = false;
+
+    static void setter(void *instance, const MetaAny &any) {
+        static_cast<Class *>(instance)->*Member = any.to<std::decay_t<Type>>();
+    }
+};
+
+
+template<typename Class, typename Type, const Type Class:: *Member>
+struct DataMemberHelper<Class, std::integral_constant<const Type Class:: *, Member>> {
+    static constexpr auto readonly = true;
+    static constexpr auto shared = false;
+    static constexpr auto ext = false;
+
+    [[noreturn]] static void setter(void *, const MetaAny &) {
+        assert(false);
+    }
+};
+
+
+template<typename>
+struct MemberFunctionBaseHelper;
+
+
+template<typename Ret, typename... Args>
+struct MemberFunctionBaseHelper<Ret(Args...)> {
+    using return_type = Ret;
+    static constexpr auto size = sizeof...(Args);
+
+    static auto arg(typename internal::MetaFuncNode::size_type index) {
+        return std::array<internal::MetaTypeNode *, sizeof...(Args)>{{internal::MetaInfo::resolve<Args>()...}}[index];
+    }
+
+    static auto accept(const internal::MetaTypeNode ** const types) {
+        std::array<internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo::resolve<Args>()...}};
+        return std::equal(args.cbegin(), args.cend(), types);
+    }
+};
+
+
+template<typename...>
+struct MemberFunctionHelper;
+
+
+template<typename Class, typename Ret, typename... Args, Ret(Class:: *Member)(Args...)>
+struct MemberFunctionHelper<Class, std::integral_constant<Ret(Class:: *)(Args...), Member>>: MemberFunctionBaseHelper<Ret(Args...)> {
+    static constexpr auto constant = false;
+    static constexpr auto shared = false;
+    static constexpr auto ext = false;
+
+    template<std::size_t... Indexes>
+    static auto invoke(int, void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
+    -> decltype(MetaAny{(static_cast<Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
+    {
+        return MetaAny{(static_cast<Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...)};
+    }
+
+    template<std::size_t... Indexes>
+    static auto invoke(char, void *instance, const MetaAny *any, std::index_sequence<Indexes...>) {
+        (static_cast<Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...);
+        return MetaAny{};
+    }
+
+    template<std::size_t... Indexes>
+    [[noreturn]] static MetaAny invoke(char, const void *, const MetaAny *, std::index_sequence<Indexes...>) {
+        assert(false);
+    }
+};
+
+
+template<typename Class, typename Ret, typename... Args, Ret(Class:: *Member)(Args...) const>
+struct MemberFunctionHelper<Class, std::integral_constant<Ret(Class:: *)(Args...) const, Member>>: MemberFunctionBaseHelper<Ret(Args...)> {
+    static constexpr auto constant = true;
+    static constexpr auto shared = false;
+    static constexpr auto ext = false;
+
+    template<std::size_t... Indexes>
+    static auto invoke(int, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
+    -> decltype(MetaAny{(static_cast<const Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
+    {
+        return MetaAny{(static_cast<const Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...)};
+    }
+
+    template<std::size_t... Indexes>
+    static auto invoke(char, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>) {
+        (static_cast<const Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...);
+        return MetaAny{};
+    }
+};
+
+
+template<typename Class, typename Ret, typename... Args, Ret(*Func)(Class &, Args...)>
+struct MemberFunctionHelper<Class, std::integral_constant<Ret(*)(Class &, Args...), Func>>: MemberFunctionBaseHelper<Ret(Args...)> {
+    static constexpr auto constant = false;
+    static constexpr auto shared = false;
+    static constexpr auto ext = true;
+
+    template<std::size_t... Indexes>
+    static auto invoke(int, void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
+    -> decltype(MetaAny{(*Func)(*static_cast<Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
+    {
+        return MetaAny{(*Func)(*static_cast<Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)};
+    }
+
+    template<std::size_t... Indexes>
+    static auto invoke(char, void *instance, const MetaAny *any, std::index_sequence<Indexes...>) {
+        (*Func)(*static_cast<Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...);
+        return MetaAny{};
+    }
+
+    template<std::size_t... Indexes>
+    [[noreturn]] static MetaAny invoke(char, const void *, const MetaAny *, std::index_sequence<Indexes...>) {
+        assert(false);
+    }
+};
+
+
+template<typename Class, typename Ret, typename... Args, Ret(*Func)(const Class &, Args...)>
+struct MemberFunctionHelper<Class, std::integral_constant<Ret(*)(const Class &, Args...), Func>>: MemberFunctionBaseHelper<Ret(Args...)> {
+    static constexpr auto constant = true;
+    static constexpr auto shared = false;
+    static constexpr auto ext = true;
+
+    template<std::size_t... Indexes>
+    static auto invoke(int, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
+    -> decltype(MetaAny{(*Func)(*static_cast<const Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
+    {
+        return MetaAny{(*Func)(*static_cast<const Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)};
+    }
+
+    template<std::size_t... Indexes>
+    static auto invoke(char, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>) {
+        (*Func)(*static_cast<const Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...);
+        return MetaAny{};
+    }
+};
+
+
+template<typename Type>
 MetaTypeNode * MetaInfo::resolve() ENTT_NOEXCEPT {
     using actual_type = std::decay_t<Type>;
 
@@ -615,6 +804,7 @@ MetaTypeNode * MetaInfo::resolve() ENTT_NOEXCEPT {
             {},
             MetaInfo::type<>,
             nullptr,
+            &TypeHelper<actual_type>::destroy,
             []() -> MetaType * {
                 return nullptr;
             }

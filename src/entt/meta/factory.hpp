@@ -15,6 +15,9 @@
 namespace entt {
 
 
+struct meta_ext_t {};
+
+
 template<typename Key, typename Value>
 inline auto property(Key &&key, Value &&value) {
     return std::make_pair(key, value);
@@ -67,7 +70,7 @@ class Meta final {
                 }
             };
 
-            assert((internal::MetaInfo::type<Type>->dtor == internal::MetaInfo::dtor<Type, std::integral_constant<void(*)(Type &), &destroy<Type>>>));
+            assert(!internal::MetaInfo::type<Type>->dtor);
             assert((!internal::MetaInfo::dtor<Type, std::integral_constant<void(*)(Type &), Func>>));
             internal::MetaInfo::dtor<Type, std::integral_constant<void(*)(Type &), Func>> = &node;
             internal::MetaInfo::type<Type>->dtor = &node;
@@ -75,8 +78,8 @@ class Meta final {
         }
 
         template<typename Func, Func *Ptr, typename... Property>
-        static auto func(const char *str, Property &&... property) ENTT_NOEXCEPT {
-            using helper_type = FreeFuncHelper<Type, Func, Ptr>;
+        static auto func(meta_ext_t, const char *str, Property &&... property) ENTT_NOEXCEPT {
+            using helper_type = internal::MemberFunctionHelper<Type, std::integral_constant<Func *, Ptr>>;
             auto * const type = internal::MetaInfo::type<Type>;
 
             static internal::MetaFuncNode node{
@@ -84,11 +87,18 @@ class Meta final {
                 type->func,
                 properties<Type, std::integral_constant<Func *, Ptr>>(std::forward<Property>(property)...),
                 helper_type::size,
+                helper_type::constant,
+                helper_type::shared,
+                helper_type::ext,
                 &internal::MetaInfo::resolve<typename helper_type::return_type>,
                 &helper_type::arg,
                 &helper_type::accept,
-                &helper_type::cinvoke,
-                &helper_type::invoke,
+                [](const void *instance, const MetaAny *any) {
+                    return helper_type::invoke(0, instance, any, std::make_index_sequence<helper_type::size>{});
+                },
+                [](void *instance, const MetaAny *any) {
+                    return helper_type::invoke(0, instance, any, std::make_index_sequence<helper_type::size>{});
+                },
                 []() {
                     static MetaFunc meta{&node};
                     return &meta;
@@ -109,15 +119,18 @@ class Meta final {
 
         template<typename Type, Type Class:: *Member, typename... Property>
         static auto data(const char *str, Property &&... property) ENTT_NOEXCEPT {
+            using helper_type = internal::DataMemberHelper<Class, std::integral_constant<Type Class:: *, Member>>;
             auto * const type = internal::MetaInfo::type<Class>;
 
             static internal::MetaDataNode node{
                 HashedString{str},
                 type->data,
                 properties<Class, std::integral_constant<Type Class:: *, Member>>(std::forward<Property>(property)...),
-                std::is_const<Type>::value,
+                helper_type::readonly,
+                helper_type::shared,
+                helper_type::ext,
                 &internal::MetaInfo::resolve<Type>,
-                &setter<Class, Type, Member>,
+                &helper_type::setter,
                 [](const void *instance) {
                     return MetaAny{static_cast<const Class *>(instance)->*Member};
                 },
@@ -139,7 +152,7 @@ class Meta final {
 
         template<typename Type, Type Class:: *Member, typename... Property>
         static auto func(const char *str, Property &&... property) ENTT_NOEXCEPT {
-            using helper_type = MemberFuncHelper<Class, Type, Member>;
+            using helper_type = internal::MemberFunctionHelper<Class, std::integral_constant<Type Class:: *, Member>>;
             auto * const type = internal::MetaInfo::type<Class>;
 
             static internal::MetaFuncNode node{
@@ -147,11 +160,18 @@ class Meta final {
                 type->func,
                 properties<Class, std::integral_constant<Type Class:: *, Member>>(std::forward<Property>(property)...),
                 helper_type::size,
+                helper_type::constant,
+                helper_type::shared,
+                helper_type::ext,
                 &internal::MetaInfo::resolve<typename helper_type::return_type>,
                 &helper_type::arg,
                 &helper_type::accept,
-                &helper_type::cinvoke,
-                &helper_type::invoke,
+                [](const void *instance, const MetaAny *any) {
+                    return helper_type::invoke(0, instance, any, std::make_index_sequence<helper_type::size>{});
+                },
+                [](void *instance, const MetaAny *any) {
+                    return helper_type::invoke(0, instance, any, std::make_index_sequence<helper_type::size>{});
+                },
                 []() {
                     static MetaFunc meta{&node};
                     return &meta;
@@ -166,142 +186,6 @@ class Meta final {
         }
     };
 
-    template<typename>
-    struct CommonFuncHelper;
-
-    template<typename Ret, typename... Args>
-    struct CommonFuncHelper<Ret(Args...)> {
-        using return_type = Ret;
-        static constexpr auto size = sizeof...(Args);
-
-        static auto arg(typename internal::MetaFuncNode::size_type index) {
-            return std::array<internal::MetaTypeNode *, sizeof...(Args)>{{internal::MetaInfo::resolve<Args>()...}}[index];
-        }
-
-        static auto accept(const internal::MetaTypeNode ** const types) {
-            std::array<internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo::resolve<Args>()...}};
-            return std::equal(args.cbegin(), args.cend(), types);
-        }
-    };
-
-    template<typename Class, typename Type, Type Class:: *>
-    class MemberFuncHelper;
-
-    template<typename Class, typename Ret, typename... Args, Ret(Class:: *Member)(Args...)>
-    class MemberFuncHelper<Class, Ret(Args...), Member>: public CommonFuncHelper<Ret(Args...)> {
-        template<std::size_t... Indexes>
-        static auto execute(int, void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
-        -> decltype(MetaAny{(static_cast<Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
-        {
-            return MetaAny{(static_cast<Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...)};
-        }
-
-        template<std::size_t... Indexes>
-        static auto execute(char, void *instance, const MetaAny *any, std::index_sequence<Indexes...>) {
-            (static_cast<Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...);
-            return MetaAny{};
-        }
-
-        template<std::size_t... Indexes>
-        static auto execute(char, const void *, const MetaAny *, std::index_sequence<Indexes...>) {
-            assert(false);
-            return MetaAny{};
-        }
-
-    public:
-        static auto invoke(void *instance, const MetaAny *any) {
-            return execute(0, instance, any, std::make_index_sequence<sizeof...(Args)>{});
-        }
-
-        static auto cinvoke(const void *instance, const MetaAny *any) {
-            return execute(0, instance, any, std::make_index_sequence<sizeof...(Args)>{});
-        }
-    };
-
-    template<typename Class, typename Ret, typename... Args, Ret(Class:: *Member)(Args...) const>
-    class MemberFuncHelper<Class, Ret(Args...) const, Member>: public CommonFuncHelper<Ret(Args...)> {
-        template<std::size_t... Indexes>
-        static auto execute(int, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
-        -> decltype(MetaAny{(static_cast<const Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
-        {
-            return MetaAny{(static_cast<const Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...)};
-        }
-
-        template<std::size_t... Indexes>
-        static auto execute(char, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>) {
-            (static_cast<const Class *>(instance)->*Member)((any+Indexes)->to<std::decay_t<Args>>()...);
-            return MetaAny{};
-        }
-
-    public:
-        static auto invoke(void *instance, const MetaAny *any) {
-            return execute(0, instance, any, std::make_index_sequence<sizeof...(Args)>{});
-        }
-
-        static auto cinvoke(const void *instance, const MetaAny *any) {
-            return execute(0, instance, any, std::make_index_sequence<sizeof...(Args)>{});
-        }
-    };
-
-    template<typename, typename Type, Type *>
-    class FreeFuncHelper;
-
-    template<typename Class, typename Ret, typename... Args, Ret(*Func)(Class &, Args...)>
-    class FreeFuncHelper<Class, Ret(Class &, Args...), Func>: public CommonFuncHelper<Ret(Args...)> {
-        template<std::size_t... Indexes>
-        static auto execute(int, void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
-        -> decltype(MetaAny{(*Func)(*static_cast<Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
-        {
-            return MetaAny{(*Func)(*static_cast<Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)};
-        }
-
-        template<std::size_t... Indexes>
-        static auto execute(char, void *instance, const MetaAny *any, std::index_sequence<Indexes...>) {
-            (*Func)(*static_cast<Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...);
-            return MetaAny{};
-        }
-
-        template<std::size_t... Indexes>
-        static auto execute(char, const void *, const MetaAny *, std::index_sequence<Indexes...>) {
-            assert(false);
-            return MetaAny{};
-        }
-
-    public:
-        static auto invoke(void *instance, const MetaAny *any) {
-            return execute(0, instance, any, std::make_index_sequence<sizeof...(Args)>{});
-        }
-
-        static auto cinvoke(const void *instance, const MetaAny *any) {
-            return execute(0, instance, any, std::make_index_sequence<sizeof...(Args)>{});
-        }
-    };
-
-    template<typename Class, typename Ret, typename... Args, Ret(*Func)(const Class &, Args...)>
-    class FreeFuncHelper<Class, Ret(const Class &, Args...), Func>: public CommonFuncHelper<Ret(Args...)> {
-        template<std::size_t... Indexes>
-        static auto execute(int, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>)
-        -> decltype(MetaAny{(*Func)(*static_cast<const Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)}, MetaAny{})
-        {
-            return MetaAny{(*Func)(*static_cast<const Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...)};
-        }
-
-        template<std::size_t... Indexes>
-        static auto execute(char, const void *instance, const MetaAny *any, std::index_sequence<Indexes...>) {
-            (*Func)(*static_cast<const Class *>(instance), (any+Indexes)->to<std::decay_t<Args>>()...);
-            return MetaAny{};
-        }
-
-    public:
-        static auto invoke(void *instance, const MetaAny *any) {
-            return execute(0, instance, any, std::make_index_sequence<sizeof...(Args)>{});
-        }
-
-        static auto cinvoke(const void *instance, const MetaAny *any) {
-            return execute(0, instance, any, std::make_index_sequence<sizeof...(Args)>{});
-        }
-    };
-
     template<typename Name, typename Node>
     inline static bool duplicate(const Name &name, const Node *node) ENTT_NOEXCEPT {
         return node ? node->name == name || duplicate(name, node->next) : false;
@@ -309,11 +193,6 @@ class Meta final {
 
     inline static bool duplicate(const MetaAny &key, const internal::MetaPropNode *node) ENTT_NOEXCEPT {
         return node ? node->key() == key || duplicate(key, node->next) : false;
-    }
-
-    template<typename Class>
-    static void destroy(Class &instance) {
-        instance.~Class();
     }
 
     template<typename...>
@@ -351,24 +230,13 @@ class Meta final {
         return MetaAny{Class{(any+Indexes)->to<std::decay_t<Args>>()...}};
     }
 
-    template<typename Class, typename Type, Type Class:: *Member>
-    static std::enable_if_t<std::is_const<Type>::value>
-    setter(void *, const MetaAny &) {
-        assert(false);
-    }
-
-    template<typename Class, typename Type, Type Class:: *Member>
-    static std::enable_if_t<!std::is_const<Type>::value>
-    setter(void *instance, const MetaAny &any) {
-        static_cast<Class *>(instance)->*Member = any.to<std::decay_t<Type>>();
-    }
-
     template<typename Type, typename... Property>
     static MetaFactory<Type> reflect(HashedString name, Property &&... property) ENTT_NOEXCEPT {
         static internal::MetaTypeNode node{
             name,
             internal::MetaInfo::type<>,
             properties<Type>(std::forward<Property>(property)...),
+            internal::TypeHelper<Type>::destroy,
             []() {
                 static MetaType meta{&node};
                 return &meta;
@@ -379,7 +247,7 @@ class Meta final {
         assert(!internal::MetaInfo::type<Type>);
         internal::MetaInfo::type<Type> = &node;
         internal::MetaInfo::type<> = &node;
-        return MetaFactory<Type>{}.template dtor<&destroy<Type>>();
+        return MetaFactory<Type>{};
     }
 
 public:
@@ -387,8 +255,8 @@ public:
     using factory_type = MetaFactory<Type>;
 
     template<typename Type, typename... Property>
-    inline static factory_type<Type> reflect(const char *str, Property &&... property) ENTT_NOEXCEPT {
-        return reflect<Type>(HashedString{str}, std::forward<Property>(property)...);
+    inline static factory_type<std::decay_t<Type>> reflect(const char *str, Property &&... property) ENTT_NOEXCEPT {
+        return reflect<std::decay_t<Type>>(HashedString{str}, std::forward<Property>(property)...);
     }
 
     template<typename Type>

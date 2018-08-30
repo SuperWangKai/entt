@@ -10,7 +10,7 @@ bool equal(const Type &value) {
 
 TEST(Meta, Fundamental) {
     entt::Meta::reflect<char>("Char")
-            .func<bool(const char &), &equal<char, 'c'>>("equal");
+            .func<bool(const char &), &equal<char, 'c'>>(entt::meta_ext_t{}, "equal");
 }
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>OLD
@@ -119,14 +119,14 @@ TEST(Meta, TODO) {
             .func<S *(int), &S::g>("g")
             .func<const S *(int) const, &S::g>("cg")
             .func<int(int) const, &S::h>("h")
-            .func<void(const S &), &serialize>("serialize", entt::property(entt::HashedString{"3"}, 3))
+            .func<void(const S &), &serialize>(entt::meta_ext_t{}, "serialize", entt::property(entt::HashedString{"3"}, 3))
             ;
 
     entt::Meta::reflect<T>("bar")
             .data<S, &T::s1>("s1")
             .data<const S, &T::s2>("s2")
             .func<void(const S &), &T::f>("f")
-            .func<void(T &), &serialize>("serialize")
+            .func<void(T &), &serialize>(entt::meta_ext_t{}, "serialize")
             ;
 
     ASSERT_NE(entt::Meta::resolve<S>(), nullptr);
@@ -155,7 +155,7 @@ TEST(Meta, TODO) {
     ASSERT_EQ(sMeta->data("j")->get(&s).to<int>(), 42);
 
     sMeta->data([&s](auto *data) {
-        if(!data->constant()) {
+        if(!data->readonly()) {
             data->set(&s, 0);
         }
     });
