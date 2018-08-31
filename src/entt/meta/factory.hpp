@@ -3,6 +3,7 @@
 
 
 #include <array>
+#include <tuple>
 #include <cassert>
 #include <cstddef>
 #include <utility>
@@ -22,13 +23,15 @@ inline auto property(Key &&key, Value &&value) {
 
 
 class Meta final {
+    struct MetaChain;
+
     template<typename Type, typename = void>
     struct MetaFactory {
         template<typename Func, Func *Ptr, typename... Property>
         static auto ctor(Property &&... property) ENTT_NOEXCEPT {
             using helper_type = internal::ReflectionHelper<std::integral_constant<Func *, Ptr>>;
             static_assert(std::is_same<typename helper_type::return_type, Type>::value, "!");
-            auto * const type = internal::MetaInfo::type<Type>;
+            auto * const type = internal::MetaInfo<std::decay_t<Type>>::type;
 
             static internal::MetaCtorNode node{
                 type->ctor,
@@ -45,8 +48,8 @@ class Meta final {
                 }
             };
 
-            assert((!internal::MetaInfo::ctor<Type, std::integral_constant<Func *, Ptr>>));
-            internal::MetaInfo::ctor<Type, std::integral_constant<Func *, Ptr>> = &node;
+            assert((!internal::MetaInfo<std::decay_t<Type>>::template ctor<std::integral_constant<Func *, Ptr>>));
+            internal::MetaInfo<std::decay_t<Type>>::template ctor<std::integral_constant<Func *, Ptr>> = &node;
             type->ctor = &node;
             return MetaFactory<Type>{};
         }
@@ -54,11 +57,11 @@ class Meta final {
         template<typename... Args, typename... Property>
         static auto ctor(Property &&... property) ENTT_NOEXCEPT {
             using helper_type = internal::FunctionHelper<void(Args...)>;
-            auto * const type = internal::MetaInfo::type<Type>;
+            auto * const type = internal::MetaInfo<std::decay_t<Type>>::type;
 
             static internal::MetaCtorNode node{
                 type->ctor,
-                properties<Type, Args...>(std::forward<Property>(property)...),
+                properties<Type, std::tuple<Args...>>(std::forward<Property>(property)...),
                 helper_type::size,
                 &helper_type::arg,
                 &helper_type::accept,
@@ -71,8 +74,8 @@ class Meta final {
                 }
             };
 
-            assert((!internal::MetaInfo::ctor<Type, Args...>));
-            internal::MetaInfo::ctor<Type, Args...> = &node;
+            assert((!internal::MetaInfo<std::decay_t<Type>>::template ctor<std::tuple<Args...>>));
+            internal::MetaInfo<std::decay_t<Type>>::template ctor<std::tuple<Args...>> = &node;
             type->ctor = &node;
             return MetaFactory<Type>{};
         }
@@ -90,17 +93,17 @@ class Meta final {
                 }
             };
 
-            assert(!internal::MetaInfo::type<Type>->dtor);
-            assert((!internal::MetaInfo::dtor<Type, std::integral_constant<void(*)(Type &), Func>>));
-            internal::MetaInfo::dtor<Type, std::integral_constant<void(*)(Type &), Func>> = &node;
-            internal::MetaInfo::type<Type>->dtor = &node;
+            assert(!internal::MetaInfo<std::decay_t<Type>>::type->dtor);
+            assert((!internal::MetaInfo<std::decay_t<Type>>::template dtor<std::integral_constant<void(*)(Type &), Func>>));
+            internal::MetaInfo<std::decay_t<Type>>::template dtor<std::integral_constant<void(*)(Type &), Func>> = &node;
+            internal::MetaInfo<std::decay_t<Type>>::type->dtor = &node;
             return MetaFactory<Type>{};
         }
 
         template<typename Data, Data *Ptr, typename... Property>
         static auto data(const char *str, Property &&... property) ENTT_NOEXCEPT {
             using helper_type = internal::ReflectionHelper<std::integral_constant<Data *, Ptr>>;
-            auto * const type = internal::MetaInfo::type<Type>;
+            auto * const type = internal::MetaInfo<std::decay_t<Type>>::type;
 
             static internal::MetaDataNode node{
                 HashedString{str},
@@ -108,13 +111,13 @@ class Meta final {
                 properties<Type, std::integral_constant<Data *, Ptr>>(std::forward<Property>(property)...),
                 helper_type::readonly,
                 helper_type::shared,
-                &internal::MetaInfo::resolve<Data>,
+                &internal::MetaInfo<std::decay_t<Data>>::resolve,
                 &helper_type::setter,
                 [](const void *) {
                     return MetaAny{*Ptr};
                 },
                 [](const internal::MetaTypeNode * const other) {
-                    return other == internal::MetaInfo::resolve<Data>();
+                    return other == internal::MetaInfo<std::decay_t<Data>>::resolve();
                 },
                 []() {
                     static MetaData meta{&node};
@@ -123,8 +126,8 @@ class Meta final {
             };
 
             assert(!duplicate(HashedString{str}, node.next));
-            assert((!internal::MetaInfo::data<Type, std::integral_constant<Data *, Ptr>>));
-            internal::MetaInfo::data<Type, std::integral_constant<Data *, Ptr>> = &node;
+            assert((!internal::MetaInfo<std::decay_t<Type>>::template data<std::integral_constant<Data *, Ptr>>));
+            internal::MetaInfo<std::decay_t<Type>>::template data<std::integral_constant<Data *, Ptr>> = &node;
             type->data = &node;
             return MetaFactory<Type>{};
         }
@@ -132,7 +135,7 @@ class Meta final {
         template<typename Func, Func *Ptr, typename... Property>
         static auto func(const char *str, Property &&... property) ENTT_NOEXCEPT {
             using helper_type = internal::ReflectionHelper<std::integral_constant<Func *, Ptr>>;
-            auto * const type = internal::MetaInfo::type<Type>;
+            auto * const type = internal::MetaInfo<std::decay_t<Type>>::type;
 
             static internal::MetaFuncNode node{
                 HashedString{str},
@@ -141,7 +144,7 @@ class Meta final {
                 helper_type::size,
                 helper_type::constant,
                 helper_type::shared,
-                &internal::MetaInfo::resolve<typename helper_type::return_type>,
+                &internal::MetaInfo<std::decay_t<typename helper_type::return_type>>::resolve,
                 &helper_type::arg,
                 &helper_type::accept,
                 [](const void *instance, const MetaAny *any) {
@@ -157,8 +160,8 @@ class Meta final {
             };
 
             assert(!duplicate(HashedString{str}, node.next));
-            assert((!internal::MetaInfo::func<Type, std::integral_constant<Func *, Ptr>>));
-            internal::MetaInfo::func<Type, std::integral_constant<Func *, Ptr>> = &node;
+            assert((!internal::MetaInfo<std::decay_t<Type>>::template func<std::integral_constant<Func *, Ptr>>));
+            internal::MetaInfo<std::decay_t<Type>>::template func<std::integral_constant<Func *, Ptr>> = &node;
             type->func = &node;
             return MetaFactory<Type>{};
         }
@@ -172,7 +175,7 @@ class Meta final {
         static std::enable_if_t<std::is_member_object_pointer<Type Class:: *>::value, MetaFactory<Class>>
         member(const char *str, Property &&... property) ENTT_NOEXCEPT {
             using helper_type = internal::ReflectionHelper<std::integral_constant<Type Class:: *, Member>>;
-            auto * const type = internal::MetaInfo::type<Class>;
+            auto * const type = internal::MetaInfo<std::decay_t<Class>>::type;
 
             static internal::MetaDataNode node{
                 HashedString{str},
@@ -180,13 +183,13 @@ class Meta final {
                 properties<Class, std::integral_constant<Type Class:: *, Member>>(std::forward<Property>(property)...),
                 helper_type::readonly,
                 helper_type::shared,
-                &internal::MetaInfo::resolve<Type>,
+                &internal::MetaInfo<std::decay_t<Type>>::resolve,
                 &helper_type::setter,
                 [](const void *instance) {
                     return MetaAny{static_cast<const Class *>(instance)->*Member};
                 },
                 [](const internal::MetaTypeNode * const other) {
-                    return other == internal::MetaInfo::resolve<Type>();
+                    return other == internal::MetaInfo<std::decay_t<Type>>::resolve();
                 },
                 []() {
                     static MetaData meta{&node};
@@ -195,8 +198,8 @@ class Meta final {
             };
 
             assert(!duplicate(HashedString{str}, node.next));
-            assert((!internal::MetaInfo::data<Class, std::integral_constant<Type Class:: *, Member>>));
-            internal::MetaInfo::data<Class, std::integral_constant<Type Class:: *, Member>> = &node;
+            assert((!internal::MetaInfo<std::decay_t<Class>>::template data<std::integral_constant<Type Class:: *, Member>>));
+            internal::MetaInfo<std::decay_t<Class>>::template data<std::integral_constant<Type Class:: *, Member>> = &node;
             type->data = &node;
             return MetaFactory<Class>{};
         }
@@ -205,7 +208,7 @@ class Meta final {
         static std::enable_if_t<std::is_member_function_pointer<Type Class:: *>::value, MetaFactory<Class>>
         member(const char *str, Property &&... property) ENTT_NOEXCEPT {
             using helper_type = internal::ReflectionHelper<std::integral_constant<Type Class:: *, Member>>;
-            auto * const type = internal::MetaInfo::type<Class>;
+            auto * const type = internal::MetaInfo<std::decay_t<Class>>::type;
 
             static internal::MetaFuncNode node{
                 HashedString{str},
@@ -214,7 +217,7 @@ class Meta final {
                 helper_type::size,
                 helper_type::constant,
                 helper_type::shared,
-                &internal::MetaInfo::resolve<typename helper_type::return_type>,
+                &internal::MetaInfo<std::decay_t<typename helper_type::return_type>>::resolve,
                 &helper_type::arg,
                 &helper_type::accept,
                 [](const void *instance, const MetaAny *any) {
@@ -230,8 +233,8 @@ class Meta final {
             };
 
             assert(!duplicate(HashedString{str}, node.next));
-            assert((!internal::MetaInfo::func<Class, std::integral_constant<Type Class:: *, Member>>));
-            internal::MetaInfo::func<Class, std::integral_constant<Type Class:: *, Member>> = &node;
+            assert((!internal::MetaInfo<std::decay_t<Class>>::template func<std::integral_constant<Type Class:: *, Member>>));
+            internal::MetaInfo<std::decay_t<Class>>::template func<std::integral_constant<Type Class:: *, Member>> = &node;
             type->func = &node;
             return MetaFactory<Class>{};
         }
@@ -251,13 +254,13 @@ class Meta final {
         return nullptr;
     }
 
-    template<typename... Dispatch, typename Property, typename... Other>
+    template<typename Type, typename Owner, typename Property, typename... Other>
     static internal::MetaPropNode * properties(const Property &property, const Other &... other) {
         static const MetaAny key{property.first};
         static const MetaAny value{property.second};
 
         static internal::MetaPropNode node{
-            properties<Dispatch...>(other...),
+            properties<Type, Owner>(other...),
             []() -> const MetaAny & {
                 return key;
             },
@@ -271,8 +274,8 @@ class Meta final {
         };
 
         assert(!duplicate(key, node.next));
-        assert((!internal::MetaInfo::prop<Dispatch..., Property, Other...>));
-        internal::MetaInfo::prop<Dispatch..., Property, Other...> = &node;
+        assert((!internal::MetaInfo<std::decay_t<Type>>::template prop<Owner, Property, Other...>));
+        internal::MetaInfo<std::decay_t<Type>>::template prop<Owner, Property, Other...> = &node;
         return &node;
     }
 
@@ -280,8 +283,8 @@ class Meta final {
     static MetaFactory<Type> reflect(HashedString name, Property &&... property) ENTT_NOEXCEPT {
         static internal::MetaTypeNode node{
             name,
-            internal::MetaInfo::type<>,
-            properties<Type>(std::forward<Property>(property)...),
+            internal::MetaInfo<MetaChain>::type,
+            properties<Type, Type>(std::forward<Property>(property)...),
             internal::TypeHelper<Type>::destroy,
             []() {
                 static MetaType meta{&node};
@@ -290,9 +293,9 @@ class Meta final {
         };
 
         assert(!duplicate(name, node.next));
-        assert(!internal::MetaInfo::type<Type>);
-        internal::MetaInfo::type<Type> = &node;
-        internal::MetaInfo::type<> = &node;
+        assert(!internal::MetaInfo<std::decay_t<Type>>::type);
+        internal::MetaInfo<std::decay_t<Type>>::type = &node;
+        internal::MetaInfo<MetaChain>::type = &node;
         return MetaFactory<Type>{};
     }
 
@@ -307,11 +310,11 @@ public:
 
     template<typename Type>
     inline static MetaType * resolve() ENTT_NOEXCEPT {
-        return internal::MetaInfo::resolve<Type>()->meta();
+        return internal::MetaInfo<std::decay_t<Type>>::resolve()->meta();
     }
 
     inline static MetaType * resolve(const char *str) ENTT_NOEXCEPT {
-        return internal::Utils::meta(HashedString{str}, internal::MetaInfo::type<>);
+        return internal::Utils::meta(HashedString{str}, internal::MetaInfo<MetaChain>::type);
     }
 };
 
