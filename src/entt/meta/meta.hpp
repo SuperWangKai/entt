@@ -33,56 +33,52 @@ struct MetaFuncNode;
 struct MetaTypeNode;
 
 
-template<typename>
 struct MetaInfo {
+    template<typename...>
     static MetaTypeNode *type;
 
-    template<typename>
+    template<typename...>
     static MetaCtorNode *ctor;
 
-    template<typename>
+    template<typename...>
     static MetaDtorNode *dtor;
 
-    template<typename>
+    template<typename...>
     static MetaDataNode *data;
 
-    template<typename>
+    template<typename...>
     static MetaFuncNode *func;
 
-    template<typename, typename...>
+    template<typename...>
     static MetaPropNode *prop;
 
+    template<typename Type>
     static internal::MetaTypeNode * resolve() ENTT_NOEXCEPT;
 };
 
 
-template<typename Type>
-MetaTypeNode * MetaInfo<Type>::type = nullptr;
+template<typename...>
+MetaTypeNode * MetaInfo::type = nullptr;
 
 
-template<typename Type>
-template<typename>
-MetaCtorNode * MetaInfo<Type>::ctor = nullptr;
+template<typename...>
+MetaCtorNode * MetaInfo::ctor = nullptr;
 
 
-template<typename Type>
-template<typename>
-MetaDtorNode * MetaInfo<Type>::dtor = nullptr;
+template<typename...>
+MetaDtorNode * MetaInfo::dtor = nullptr;
 
 
-template<typename Type>
-template<typename>
-MetaDataNode * MetaInfo<Type>::data = nullptr;
+template<typename...>
+MetaDataNode * MetaInfo::data = nullptr;
 
 
-template<typename Type>
-template<typename>
-MetaFuncNode * MetaInfo<Type>::func = nullptr;
+template<typename...>
+MetaFuncNode * MetaInfo::func = nullptr;
 
 
-template<typename Type>
-template<typename, typename...>
-MetaPropNode * MetaInfo<Type>::prop = nullptr;
+template<typename...>
+MetaPropNode * MetaInfo::prop = nullptr;
 
 
 struct MetaPropNode final {
@@ -196,7 +192,7 @@ public:
     }
 
     MetaTypeNode * node() const ENTT_NOEXCEPT override {
-        return MetaInfo<Type>::resolve();
+        return MetaInfo::resolve<Type>();
     }
 
     inline const void * data() const ENTT_NOEXCEPT override {
@@ -272,7 +268,7 @@ struct MetaAny final {
 
     template<typename Type>
     bool convertible() const ENTT_NOEXCEPT {
-        return internal::MetaInfo<std::decay_t<Type>>::resolve() == actual->node();
+        return internal::MetaInfo::resolve<std::decay_t<Type>>() == actual->node();
     }
 
     template<typename Type>
@@ -365,7 +361,7 @@ public:
 
     template<typename... Args>
     bool accept() const ENTT_NOEXCEPT {
-        std::array<const internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo<std::decay_t<Args>>::resolve()...}};
+        std::array<const internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo::resolve<Args>()...}};
         return sizeof...(Args) == size() ? node->accept(args.data()) : false;
     }
 
@@ -441,14 +437,14 @@ public:
         return node->type()->meta();
     }
 
-    template<typename Type>
+    template<typename Arg>
     bool accept() const ENTT_NOEXCEPT {
-        return node->accept(internal::MetaInfo<std::decay_t<Type>>::resolve());
+        return node->accept(internal::MetaInfo::resolve<Arg>());
     }
 
-    template<typename Type>
-    void set(void *instance, Type &&value) {
-        return accept<Type>() ? node->set(instance, MetaAny{std::forward<Type>(value)}) : void();
+    template<typename Arg>
+    void set(void *instance, Arg &&arg) {
+        return accept<Arg>() ? node->set(instance, MetaAny{std::forward<Arg>(arg)}) : void();
     }
 
     inline MetaAny get(const void *instance) const ENTT_NOEXCEPT {
@@ -506,7 +502,7 @@ public:
 
     template<typename... Args>
     bool accept() const ENTT_NOEXCEPT {
-        std::array<const internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo<std::decay_t<Args>>::resolve()...}};
+        std::array<const internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo::resolve<Args>()...}};
         return sizeof...(Args) == size() ? node->accept(args.data()) : false;
     }
 
@@ -651,11 +647,11 @@ struct FunctionHelper<Ret(Args...)> {
     static constexpr auto size = sizeof...(Args);
 
     static auto arg(typename internal::MetaFuncNode::size_type index) {
-        return std::array<internal::MetaTypeNode *, sizeof...(Args)>{{internal::MetaInfo<std::decay_t<Args>>::resolve()...}}[index];
+        return std::array<internal::MetaTypeNode *, sizeof...(Args)>{{internal::MetaInfo::resolve<Args>()...}}[index];
     }
 
     static auto accept(const internal::MetaTypeNode ** const types) {
-        std::array<internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo<std::decay_t<Args>>::resolve()...}};
+        std::array<internal::MetaTypeNode *, sizeof...(Args)> args{{internal::MetaInfo::resolve<Args>()...}};
         return std::equal(args.cbegin(), args.cend(), types);
     }
 };
@@ -785,22 +781,24 @@ struct ReflectionHelper<std::integral_constant<Ret(*)(Args...), Func>, std::enab
 
 
 template<typename Type>
-MetaTypeNode * MetaInfo<Type>::resolve() ENTT_NOEXCEPT {
-    if(!type) {
+MetaTypeNode * MetaInfo::resolve() ENTT_NOEXCEPT {
+    using actual_type = std::decay_t<Type>;
+
+    if(!type<actual_type>) {
         static MetaTypeNode node{
             {},
             nullptr,
             nullptr,
-            &TypeHelper<std::decay_t<Type>>::destroy,
+            &TypeHelper<actual_type>::destroy,
             []() -> MetaType * {
                 return nullptr;
             }
         };
 
-        type = &node;
+        type<actual_type> = &node;
     }
 
-    return type;
+    return type<actual_type>;
 }
 
 
