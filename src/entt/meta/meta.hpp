@@ -33,8 +33,18 @@ struct MetaFuncNode;
 struct MetaTypeNode;
 
 
-template<typename>
+template<typename...>
 struct MetaNode {
+    static MetaTypeNode *type;
+};
+
+
+template<typename... Type>
+MetaTypeNode * MetaNode<Type...>::type = nullptr;
+
+
+template<typename Type>
+struct MetaNode<Type> {
     static MetaTypeNode *type;
 
     template<typename>
@@ -85,8 +95,8 @@ template<typename, typename...>
 MetaPropNode * MetaNode<Type>::prop = nullptr;
 
 
-template<typename Type>
-struct MetaInfo: MetaNode<std::decay_t<Type>> {};
+template<typename... Type>
+struct MetaInfo: MetaNode<std::decay_t<Type>...> {};
 
 
 struct MetaPropNode final {
