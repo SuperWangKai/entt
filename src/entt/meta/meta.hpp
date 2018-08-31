@@ -2,6 +2,7 @@
 #define ENTT_META_META_HPP
 
 
+#include <tuple>
 #include <memory>
 #include <cassert>
 #include <cstddef>
@@ -280,7 +281,7 @@ struct MetaAny final {
         return *this;
     }
 
-    MetaType * meta() const ENTT_NOEXCEPT {
+    MetaType * type() const ENTT_NOEXCEPT {
         return actual ? actual->node()->meta() : nullptr;
     }
 
@@ -330,7 +331,7 @@ struct MetaAny final {
     }
 
     inline bool operator==(const MetaAny &other) const ENTT_NOEXCEPT {
-        return actual == other.actual || (meta() == other.meta() && actual && other.actual && *actual == *other.actual);
+        return actual == other.actual || (type() == other.type() && actual && other.actual && *actual == *other.actual);
     }
 
 private:
@@ -662,6 +663,8 @@ struct FunctionHelper;
 template<typename Ret, typename... Args>
 struct FunctionHelper<Ret(Args...)> {
     using return_type = Ret;
+    using args_type = std::tuple<Args...>;
+
     static constexpr auto size = sizeof...(Args);
 
     static auto arg(typename internal::MetaFuncNode::size_type index) {

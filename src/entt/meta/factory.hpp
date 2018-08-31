@@ -3,7 +3,6 @@
 
 
 #include <array>
-#include <tuple>
 #include <cassert>
 #include <cstddef>
 #include <utility>
@@ -33,7 +32,7 @@ class Meta final {
 
             static internal::MetaCtorNode node{
                 type->ctor,
-                properties<Type, std::integral_constant<Func *, Ptr>>(std::forward<Property>(property)...),
+                properties<Type, typename helper_type::args_type>(std::forward<Property>(property)...),
                 helper_type::size,
                 &helper_type::arg,
                 &helper_type::accept,
@@ -46,8 +45,8 @@ class Meta final {
                 }
             };
 
-            assert((!internal::MetaInfo<Type>::template ctor<std::integral_constant<Func *, Ptr>>));
-            internal::MetaInfo<Type>::template ctor<std::integral_constant<Func *, Ptr>> = &node;
+            assert((!internal::MetaInfo<Type>::template ctor<typename helper_type::args_type>));
+            internal::MetaInfo<Type>::template ctor<typename helper_type::args_type> = &node;
             type->ctor = &node;
             return MetaFactory<Type>{};
         }
@@ -59,7 +58,7 @@ class Meta final {
 
             static internal::MetaCtorNode node{
                 type->ctor,
-                properties<Type, std::tuple<Args...>>(std::forward<Property>(property)...),
+                properties<Type, typename helper_type::args_type>(std::forward<Property>(property)...),
                 helper_type::size,
                 &helper_type::arg,
                 &helper_type::accept,
@@ -72,8 +71,8 @@ class Meta final {
                 }
             };
 
-            assert((!internal::MetaInfo<Type>::template ctor<std::tuple<Args...>>));
-            internal::MetaInfo<Type>::template ctor<std::tuple<Args...>> = &node;
+            assert((!internal::MetaInfo<Type>::template ctor<typename helper_type::args_type>));
+            internal::MetaInfo<Type>::template ctor<typename helper_type::args_type> = &node;
             type->ctor = &node;
             return MetaFactory<Type>{};
         }

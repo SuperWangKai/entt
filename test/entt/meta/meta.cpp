@@ -8,10 +8,84 @@ bool equal(const Type &value) {
     return value == Value;
 }
 
+enum class Properties {
+    aProperty,
+    anotherProperty
+};
+
+template<typename Type>
+struct FundamentalHelper {
+    template<typename... Args>
+    static Type ctor(Args... args) { return Type{args...}; }
+
+    static void dtor(Type &v) {
+        value = v;
+    }
+
+    static Type identity(Type v) {
+        return v;
+    }
+
+    static Type value;
+};
+
+template<typename Type>
+Type FundamentalHelper<Type>::value{};
+
 TEST(Meta, Fundamental) {
-    entt::Meta::reflect<char>("Char")
-            .func<bool(const char &), &equal<char, 'c'>>("equal");
+    entt::Meta::reflect<char>("char")
+            .ctor<>()
+            .ctor<char(char), &FundamentalHelper<char>::ctor<char>>()
+            .dtor<&FundamentalHelper<char>::dtor>()
+            .data<char, &FundamentalHelper<char>::value>("value")
+            .func<char(char), &FundamentalHelper<char>::identity>("identity");
+
+    ASSERT_EQ(entt::Meta::resolve<char>(), entt::Meta::resolve("char"));
+    ASSERT_NE(entt::Meta::resolve<char>(), nullptr);
+    ASSERT_NE(entt::Meta::resolve("char"), nullptr);
+
+    auto *type = entt::Meta::resolve<char>();
+
+    ASSERT_STREQ(type->name(), "char");
+
+    // ASSERT_NE(type->ctor)
+    // // TODO
+
+    auto any = type->construct();
+
+    ASSERT_TRUE(any.valid());
+    ASSERT_TRUE(any.convertible<char>());
+    ASSERT_TRUE(any.convertible<const char>());
+    ASSERT_TRUE(any.convertible<const char &>());
+    ASSERT_EQ(any.type(), entt::Meta::resolve<char>());
+    ASSERT_EQ(any.type(), entt::Meta::resolve<const char>());
+    ASSERT_EQ(any.type(), entt::Meta::resolve<const char &>());
+    ASSERT_NE(any.type(), nullptr);
+    ASSERT_EQ(any.to<char>(), char{});
+
+    any = type->construct('c');
+
+    ASSERT_TRUE(any.valid());
+    ASSERT_TRUE(any.convertible<char>());
+    ASSERT_TRUE(any.convertible<const char>());
+    ASSERT_TRUE(any.convertible<const char &>());
+    ASSERT_EQ(any.type(), entt::Meta::resolve<char>());
+    ASSERT_EQ(any.type(), entt::Meta::resolve<const char>());
+    ASSERT_EQ(any.type(), entt::Meta::resolve<const char &>());
+    ASSERT_NE(any.type(), nullptr);
+    ASSERT_EQ(any.to<char>(), 'c');
+
+    ASSERT_EQ(FundamentalHelper<char>::value, char{});
+
+    type->destroy(any);
+
+    ASSERT_EQ(FundamentalHelper<char>::value, 'c');
+
+    // TODO
 }
+
+// test any
+// test types
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>OLD
 
@@ -196,7 +270,7 @@ TEST(Meta, TODO) {
     auto *s1DataMeta = s1Data->type();
     auto instance = s1DataMeta->ctor<int, int>()->invoke(99, 100);
 
-    ASSERT_EQ(instance.meta(), entt::Meta::resolve<S>());
+    ASSERT_EQ(instance.type(), entt::Meta::resolve<S>());
     ASSERT_TRUE(instance);
 
     tMeta->data("s1")->set(&t, instance.to<S>());
@@ -207,7 +281,7 @@ TEST(Meta, TODO) {
 
     auto res = sMeta->func("h")->invoke(&s, 41);
 
-    ASSERT_EQ(res.meta(), entt::Meta::resolve<int>());
+    ASSERT_EQ(res.type(), entt::Meta::resolve<int>());
     ASSERT_EQ(res.to<int>(), 42);
 
     sMeta->func("serialize")->invoke(static_cast<const void *>(&s));
