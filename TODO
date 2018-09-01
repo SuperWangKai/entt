@@ -2,11 +2,9 @@
 # suggestion (Alan): add iterative sorter to the algorithms
 * custom allocators and EnTT allocator-aware in general (long term feature, I don't actually need it at the moment) - see #22
 * scene management (I prefer the concept of spaces, that is a kind of scene anyway)
-* review doc: separate it in multiple md/dox files, reduce the readme to a minimum and provide users with links to the online documentation on gh-pages
 * debugging tools (#60): the issue online already contains interesting tips on this, look at it
 * define basic reactive systems (track entities to which component is attached, track entities from which component is removed, and so on)
 * define systems as composable mixins (initializazion, reactive, update, whatever) with flexible auto-detected arguments (registry, views, etc)
-* create dedicated flat map based on types implementation (sort of "type map") for types to use within the registry and so on...
 * registry::create with a "hint" on the entity identifier to use, it should ease combining multiple registries
 * deep copy of a registry (or use the snapshot stuff to copy components and keep intact ids at least)
 * is it possible to iterate all the components assigned to an entity through a common base class?
@@ -19,4 +17,4 @@
 * C++17. That's all.
 * meta: sort of meta view based on meta stuff to iterate entities, void * and meta info objects
 * tag_t and the others, create constexpr var
-* AOB
+* namespace scope separation (entt::ecs, entt::signal, and so on)
