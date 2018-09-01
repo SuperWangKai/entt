@@ -22,12 +22,17 @@ struct Helper {
 template<typename Type>
 Type Helper<Type>::value{};
 
+enum class Properties {
+    boolProperty,
+    intProperty
+};
+
 struct Meta: ::testing::Test {
     static void SetUpTestCase() {
-        entt::Meta::reflect<char>("char")
-                .ctor<>()
+        entt::Meta::reflect<char>("char", entt::property(Properties::boolProperty, false), entt::property(Properties::intProperty, 3))
+                .ctor<>(entt::property(Properties::boolProperty, true))
                 .ctor<char(char), &Helper<char>::ctor<char>>()
-                .dtor<&Helper<char>::dtor>()
+                .dtor<&Helper<char>::dtor>(entt::property(Properties::boolProperty, false))
                 .data<char, &Helper<char>::value>("value")
                 .func<char(char), &Helper<char>::identity>("identity");
     }
@@ -110,7 +115,30 @@ TEST_F(Meta, MetaAny) {
 }
 
 TEST_F(Meta, MetaProp) {
-    // TODO
+    auto *type = entt::Meta::resolve<char>();
+
+    ASSERT_NE(type->property(Properties::boolProperty), nullptr);
+    ASSERT_NE(type->property(Properties::intProperty), nullptr);
+    ASSERT_TRUE(type->property(Properties::boolProperty)->key().convertible<Properties>());
+    ASSERT_TRUE(type->property(Properties::intProperty)->key().convertible<Properties>());
+    ASSERT_EQ(type->property(Properties::boolProperty)->key().to<Properties>(), Properties::boolProperty);
+    ASSERT_EQ(type->property(Properties::intProperty)->key().to<Properties>(), Properties::intProperty);
+    ASSERT_TRUE(type->property(Properties::boolProperty)->value().convertible<bool>());
+    ASSERT_TRUE(type->property(Properties::intProperty)->value().convertible<int>());
+    ASSERT_FALSE(type->property(Properties::boolProperty)->value().to<bool>());
+    ASSERT_EQ(type->property(Properties::intProperty)->value().to<int>(), 3);
+
+    type->properties([](auto *prop) {
+        ASSERT_TRUE(prop->key().template convertible<Properties>());
+
+        if(prop->value().template convertible<bool>()) {
+            ASSERT_FALSE(prop->value().template to<bool>());
+        } else if(prop->value().template convertible<int>()) {
+            ASSERT_EQ(prop->value().template to<int>(), 3);
+        } else {
+            FAIL();
+        }
+    });
 }
 
 TEST_F(Meta, MetaCtor) {
@@ -139,11 +167,46 @@ TEST_F(Meta, MetaCtor) {
     ASSERT_FALSE(ok.convertible<int>());
     ASSERT_EQ(ok.to<char>(), 'c');
 
-    // TODO properties, property
+    ctor = entt::Meta::resolve<char>()->ctor<>();
+
+    ASSERT_NE(ctor->property(Properties::boolProperty), nullptr);
+    ASSERT_TRUE(ctor->property(Properties::boolProperty)->key().convertible<Properties>());
+    ASSERT_EQ(ctor->property(Properties::boolProperty)->key().to<Properties>(), Properties::boolProperty);
+    ASSERT_TRUE(ctor->property(Properties::boolProperty)->value().convertible<bool>());
+    ASSERT_TRUE(ctor->property(Properties::boolProperty)->value().to<bool>());
+    ASSERT_EQ(ctor->property(Properties::intProperty), nullptr);
+
+    ctor->properties([](auto *prop) {
+        ASSERT_TRUE(prop->key().template convertible<Properties>());
+        ASSERT_EQ(prop->key().template to<Properties>(), Properties::boolProperty);
+        ASSERT_TRUE(prop->value().template convertible<bool>());
+        ASSERT_TRUE(prop->value().template to<bool>());
+    });
 }
 
 TEST_F(Meta, MetaDtor) {
-    // TODO
+    auto *dtor = entt::Meta::resolve<char>()->dtor();
+    char c = '*';
+
+    ASSERT_NE(Helper<char>::value, '*');
+
+    dtor->invoke(&c);
+
+    ASSERT_EQ(Helper<char>::value, '*');
+
+    ASSERT_NE(dtor->property(Properties::boolProperty), nullptr);
+    ASSERT_TRUE(dtor->property(Properties::boolProperty)->key().convertible<Properties>());
+    ASSERT_EQ(dtor->property(Properties::boolProperty)->key().to<Properties>(), Properties::boolProperty);
+    ASSERT_TRUE(dtor->property(Properties::boolProperty)->value().convertible<bool>());
+    ASSERT_FALSE(dtor->property(Properties::boolProperty)->value().to<bool>());
+    ASSERT_EQ(dtor->property(Properties::intProperty), nullptr);
+
+    dtor->properties([](auto *prop) {
+        ASSERT_TRUE(prop->key().template convertible<Properties>());
+        ASSERT_EQ(prop->key().template to<Properties>(), Properties::boolProperty);
+        ASSERT_TRUE(prop->value().template convertible<bool>());
+        ASSERT_FALSE(prop->value().template to<bool>());
+    });
 }
 
 TEST_F(Meta, MetaData) {

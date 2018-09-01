@@ -16,5 +16,6 @@
 * make view copyable/moveable
 * C++17. That's all.
 * meta: sort of meta view based on meta stuff to iterate entities, void * and meta info objects
+* meta: meta any requires small object optimization, really
 * tag_t and the others, create constexpr var
 * namespace scope separation (entt::ecs, entt::signal, and so on)
