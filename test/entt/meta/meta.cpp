@@ -3,18 +3,8 @@
 #include <entt/meta/factory.hpp>
 #include <entt/meta/meta.hpp>
 
-template<typename Type, Type Value>
-bool equal(const Type &value) {
-    return value == Value;
-}
-
-enum class Properties {
-    aProperty,
-    anotherProperty
-};
-
 template<typename Type>
-struct FundamentalHelper {
+struct Helper {
     template<typename... Args>
     static Type ctor(Args... args) { return Type{args...}; }
 
@@ -30,16 +20,20 @@ struct FundamentalHelper {
 };
 
 template<typename Type>
-Type FundamentalHelper<Type>::value{};
+Type Helper<Type>::value{};
 
-TEST(Meta, Fundamental) {
-    entt::Meta::reflect<char>("char")
-            .ctor<>()
-            .ctor<char(char), &FundamentalHelper<char>::ctor<char>>()
-            .dtor<&FundamentalHelper<char>::dtor>()
-            .data<char, &FundamentalHelper<char>::value>("value")
-            .func<char(char), &FundamentalHelper<char>::identity>("identity");
+struct Meta: ::testing::Test {
+    static void SetUpTestCase() {
+        entt::Meta::reflect<char>("char")
+                .ctor<>()
+                .ctor<char(char), &Helper<char>::ctor<char>>()
+                .dtor<&Helper<char>::dtor>()
+                .data<char, &Helper<char>::value>("value")
+                .func<char(char), &Helper<char>::identity>("identity");
+    }
+};
 
+TEST_F(Meta, Fundamental) {
     ASSERT_EQ(entt::Meta::resolve<char>(), entt::Meta::resolve("char"));
     ASSERT_NE(entt::Meta::resolve<char>(), nullptr);
     ASSERT_NE(entt::Meta::resolve("char"), nullptr);
@@ -48,12 +42,37 @@ TEST(Meta, Fundamental) {
 
     ASSERT_STREQ(type->name(), "char");
 
-    // ASSERT_NE(type->ctor)
-    // // TODO
+    ASSERT_NE(type->ctor<>(), nullptr);
+    ASSERT_NE(type->ctor<char>(), nullptr);
+    ASSERT_EQ(type->ctor<int>(), nullptr);
+
+    type->ctor([](auto *meta) {
+        ASSERT_TRUE(meta->template accept<>() || meta->template accept<char>());
+    });
+
+    ASSERT_NE(type->dtor(), nullptr);
+
+    type->dtor([type](auto *meta) {
+        ASSERT_EQ(type->dtor(), meta);
+    });
+
+    ASSERT_NE(type->data("value"), nullptr);
+    ASSERT_EQ(type->data("eulav"), nullptr);
+
+    type->data([](auto *meta) {
+        ASSERT_STREQ(meta->name(), "value");
+    });
+
+    ASSERT_NE(type->func("identity"), nullptr);
+    ASSERT_EQ(type->func("ytitnedi"), nullptr);
+
+    type->func([](auto *meta) {
+        ASSERT_STREQ(meta->name(), "identity");
+    });
 
     auto any = type->construct();
 
-    ASSERT_TRUE(any.valid());
+    ASSERT_TRUE(any);
     ASSERT_TRUE(any.convertible<char>());
     ASSERT_TRUE(any.convertible<const char>());
     ASSERT_TRUE(any.convertible<const char &>());
@@ -65,7 +84,7 @@ TEST(Meta, Fundamental) {
 
     any = type->construct('c');
 
-    ASSERT_TRUE(any.valid());
+    ASSERT_TRUE(any);
     ASSERT_TRUE(any.convertible<char>());
     ASSERT_TRUE(any.convertible<const char>());
     ASSERT_TRUE(any.convertible<const char &>());
@@ -75,20 +94,85 @@ TEST(Meta, Fundamental) {
     ASSERT_NE(any.type(), nullptr);
     ASSERT_EQ(any.to<char>(), 'c');
 
-    ASSERT_EQ(FundamentalHelper<char>::value, char{});
+    ASSERT_EQ(Helper<char>::value, char{});
 
     type->destroy(any);
 
-    ASSERT_EQ(FundamentalHelper<char>::value, 'c');
+    ASSERT_EQ(Helper<char>::value, 'c');
+}
 
+TEST_F(Meta, Struct) {
     // TODO
 }
 
-// test any
-// test types
+TEST_F(Meta, MetaAny) {
+    // TODO
+}
+
+TEST_F(Meta, MetaProp) {
+    // TODO
+}
+
+TEST_F(Meta, MetaCtor) {
+    auto *ctor = entt::Meta::resolve<char>()->ctor<char>();
+
+    ASSERT_NE(ctor, nullptr);
+    ASSERT_EQ(ctor->size(), typename entt::MetaCtor::size_type{1});
+    ASSERT_EQ(ctor->arg({}), entt::Meta::resolve<char>());
+    ASSERT_NE(ctor->arg({}), entt::Meta::resolve<int>());
+    ASSERT_EQ(ctor->arg(typename entt::MetaCtor::size_type{1}), nullptr);
+    ASSERT_FALSE(ctor->accept<>());
+    ASSERT_FALSE(ctor->accept<int>());
+    ASSERT_TRUE(ctor->accept<char>());
+    ASSERT_TRUE(ctor->accept<const char>());
+    ASSERT_TRUE(ctor->accept<const char &>());
+
+    auto ok = ctor->invoke('c');
+    auto ko = ctor->invoke(42);
+
+    ASSERT_FALSE(ko);
+    ASSERT_TRUE(ok);
+    ASSERT_NE(ok, ko);
+    ASSERT_FALSE(ko.convertible<char>());
+    ASSERT_FALSE(ko.convertible<int>());
+    ASSERT_TRUE(ok.convertible<char>());
+    ASSERT_FALSE(ok.convertible<int>());
+    ASSERT_EQ(ok.to<char>(), 'c');
+
+    // TODO properties, property
+}
+
+TEST_F(Meta, MetaDtor) {
+    // TODO
+}
+
+TEST_F(Meta, MetaData) {
+    // TODO
+}
+
+TEST_F(Meta, MetaFunc) {
+    // TODO
+}
+
+TEST_F(Meta, MetaType) {
+    // TODO
+}
+
+TEST_F(Meta, Properties) {
+    // TODO
+}
+
+TEST_F(Meta, Types) {
+    // TODO conversions, decays are set correctly all around, etc.
+}
+
+TEST_F(Meta, DefDestructor) {
+    // TODO
+}
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>OLD
 
+/*
 #include <iostream>
 
 void print(unsigned int n, entt::MetaType *meta) {
@@ -304,3 +388,4 @@ TEST(Meta, TODO) {
 
     print(0, entt::Meta::resolve("A"));
 }
+*/

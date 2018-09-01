@@ -228,10 +228,8 @@ private:
 
 
 struct Utils {
-    template<typename Meta, typename Op, typename Node>
-    static auto iterate(Op op, const Node *curr) ENTT_NOEXCEPT
-    -> decltype(op(std::declval<Meta *>()), void())
-    {
+    template<typename Op, typename Node>
+    static auto iterate(Op op, const Node *curr) ENTT_NOEXCEPT {
         while(curr) {
             op(curr->meta());
             curr = curr->next;
@@ -242,7 +240,7 @@ struct Utils {
     static MetaProp * property(Key &&key, const MetaPropNode *curr) {
         MetaProp *prop = nullptr;
 
-        iterate<MetaProp>([&prop, key = std::forward<Key>(key)](auto *curr) {
+        iterate([&prop, key = std::forward<Key>(key)](auto *curr) {
             prop = (curr->key().template convertible<Key>() && curr->key() == key) ? curr : prop;
         }, curr);
 
@@ -287,7 +285,7 @@ struct MetaAny final {
 
     template<typename Type>
     bool convertible() const ENTT_NOEXCEPT {
-        return internal::MetaInfo<Type>::resolve() == actual->node();
+        return actual ? internal::MetaInfo<Type>::resolve() == actual->node() : false;
     }
 
     template<typename Type>
@@ -392,7 +390,7 @@ public:
 
     template<typename Op>
     inline void properties(Op op) const ENTT_NOEXCEPT {
-        internal::Utils::iterate<MetaProp>(std::move(op), node->prop);
+        internal::Utils::iterate(std::move(op), node->prop);
     }
 
     template<typename Key>
@@ -419,7 +417,7 @@ public:
 
     template<typename Op>
     inline void properties(Op op) const ENTT_NOEXCEPT {
-        internal::Utils::iterate<MetaProp>(std::move(op), node->prop);
+        internal::Utils::iterate(std::move(op), node->prop);
     }
 
     template<typename Key>
@@ -472,7 +470,7 @@ public:
 
     template<typename Op>
     inline void properties(Op op) const ENTT_NOEXCEPT {
-        internal::Utils::iterate<MetaProp>(std::move(op), node->prop);
+        internal::Utils::iterate(std::move(op), node->prop);
     }
 
     template<typename Key>
@@ -539,7 +537,7 @@ public:
 
     template<typename Op>
     inline void properties(Op op) const ENTT_NOEXCEPT {
-        internal::Utils::iterate<MetaProp>(std::move(op), node->prop);
+        internal::Utils::iterate(std::move(op), node->prop);
     }
 
     template<typename Key>
@@ -566,7 +564,7 @@ public:
 
     template<typename Op>
     inline void ctor(Op op) const ENTT_NOEXCEPT {
-        internal::Utils::iterate<MetaCtor>(std::move(op), node->ctor);
+        internal::Utils::iterate(std::move(op), node->ctor);
     }
 
     template<typename... Args>
@@ -591,7 +589,7 @@ public:
 
     template<typename Op>
     inline void data(Op op) const ENTT_NOEXCEPT {
-        internal::Utils::iterate<MetaData>(std::move(op), node->data);
+        internal::Utils::iterate(std::move(op), node->data);
     }
 
     inline MetaData * data(const char *str) const ENTT_NOEXCEPT {
@@ -600,7 +598,7 @@ public:
 
     template<typename Op>
     inline void func(Op op) const ENTT_NOEXCEPT {
-        internal::Utils::iterate<MetaFunc>(std::move(op), node->func);
+        internal::Utils::iterate(std::move(op), node->func);
     }
 
     inline MetaFunc * func(const char *str) const ENTT_NOEXCEPT {
@@ -624,7 +622,7 @@ public:
 
     template<typename Op>
     inline void properties(Op op) const ENTT_NOEXCEPT {
-        internal::Utils::iterate<MetaProp>(std::move(op), node->prop);
+        internal::Utils::iterate(std::move(op), node->prop);
     }
 
     template<typename Key>
