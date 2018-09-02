@@ -22,6 +22,18 @@ struct Helper {
 template<typename Type>
 Type Helper<Type>::value{};
 
+struct Counter {
+    Counter() { ++value; }
+    Counter(const Counter &) { ++value; }
+    Counter(Counter &&) { ++value; }
+    Counter & operator=(const Counter &) { ++value; return *this; }
+    Counter & operator=(Counter &&) { ++value; return *this; }
+    ~Counter() { --value; }
+    static int value;
+};
+
+int Counter::value{};
+
 enum class Properties {
     boolProperty,
     intProperty
@@ -33,8 +45,10 @@ struct Meta: ::testing::Test {
                 .ctor<>(entt::property(Properties::boolProperty, true))
                 .ctor<char(char), &Helper<char>::ctor<char>>()
                 .dtor<&Helper<char>::dtor>(entt::property(Properties::boolProperty, false))
-                .data<char, &Helper<char>::value>("value")
-                .func<char(char), &Helper<char>::identity>("identity");
+                .data<char, &Helper<char>::value>("value", entt::property(Properties::intProperty, 1))
+                .func<char(char), &Helper<char>::identity>("identity", entt::property(Properties::intProperty, 99));
+
+        entt::Meta::reflect<Counter>("counter").ctor<>();
     }
 };
 
@@ -111,7 +125,41 @@ TEST_F(Meta, Struct) {
 }
 
 TEST_F(Meta, MetaAny) {
-    // TODO
+    entt::MetaAny empty{};
+    const entt::MetaAny &cempty = empty;
+
+    ASSERT_FALSE(empty.valid());
+    ASSERT_FALSE(cempty);
+    ASSERT_EQ(empty.type(), nullptr);
+    ASSERT_FALSE(empty.convertible<int>());
+    ASSERT_FALSE(cempty.convertible<void>());
+    ASSERT_EQ(cempty.data(), nullptr);
+    ASSERT_EQ(cempty.data<char>(), nullptr);
+    ASSERT_EQ(empty.data(), nullptr);
+    ASSERT_EQ(empty.data<char>(), nullptr);
+    ASSERT_EQ(static_cast<const void *>(cempty), nullptr);
+    ASSERT_EQ(static_cast<void *>(empty), nullptr);
+    ASSERT_EQ(empty, cempty);
+
+    entt::MetaAny any{'c'};
+    const entt::MetaAny &cany = any;
+
+    ASSERT_TRUE(any.valid());
+    ASSERT_TRUE(cany);
+    ASSERT_NE(any.type(), nullptr);
+    ASSERT_EQ(any.type(), cany.type());
+    ASSERT_EQ(cany.type(), entt::Meta::resolve<char>());
+    ASSERT_EQ(cany.type(), entt::Meta::resolve<char &>());
+    ASSERT_TRUE(any.convertible<char>());
+    ASSERT_EQ(cany.to<char>(), any.to<char>());
+    ASSERT_EQ(cany.to<char>(), 'c');
+    ASSERT_NE(cany.data(), nullptr);
+    ASSERT_NE(cany.data<char>(), nullptr);
+    ASSERT_NE(any.data(), nullptr);
+    ASSERT_NE(any.data<char>(), nullptr);
+    ASSERT_NE(static_cast<const void *>(cany), nullptr);
+    ASSERT_NE(static_cast<void *>(any), nullptr);
+    ASSERT_EQ(any, cany);
 }
 
 TEST_F(Meta, MetaProp) {
@@ -210,27 +258,105 @@ TEST_F(Meta, MetaDtor) {
 }
 
 TEST_F(Meta, MetaData) {
-    // TODO
+    auto *data = entt::Meta::resolve<char>()->data("value");
+
+    ASSERT_STREQ(data->name(), "value");
+    ASSERT_FALSE(data->readonly());
+    ASSERT_TRUE(data->shared());
+    ASSERT_EQ(data->type(), entt::Meta::resolve<char>());
+
+    ASSERT_TRUE(data->accept<char>());
+    ASSERT_TRUE(data->accept<const char>());
+    ASSERT_TRUE(data->accept<const char &>());
+    ASSERT_FALSE(data->accept<char *>());
+    ASSERT_FALSE(data->accept<int>());
+
+    data->set(nullptr, '#');
+    const auto any = data->get(nullptr);
+
+    ASSERT_TRUE(any.valid());
+    ASSERT_TRUE(any.convertible<char>());
+    ASSERT_EQ(any.to<char>(), '#');
+
+    ASSERT_NE(data->property(Properties::intProperty), nullptr);
+    ASSERT_TRUE(data->property(Properties::intProperty)->key().convertible<Properties>());
+    ASSERT_EQ(data->property(Properties::intProperty)->key().to<Properties>(), Properties::intProperty);
+    ASSERT_TRUE(data->property(Properties::intProperty)->value().convertible<int>());
+    ASSERT_EQ(data->property(Properties::intProperty)->value().to<int>(), 1);
+    ASSERT_EQ(data->property(Properties::boolProperty), nullptr);
+
+    data->properties([](auto *prop) {
+        ASSERT_TRUE(prop->key().template convertible<Properties>());
+        ASSERT_EQ(prop->key().template to<Properties>(), Properties::intProperty);
+        ASSERT_TRUE(prop->value().template convertible<int>());
+        ASSERT_EQ(prop->value().template to<int>(), 1);
+    });
 }
 
 TEST_F(Meta, MetaFunc) {
-    // TODO
+    auto *func = entt::Meta::resolve<char>()->func("identity");
+
+    ASSERT_STREQ(func->name(), "identity");
+    ASSERT_EQ(func->size(), entt::MetaFunc::size_type{1});
+    ASSERT_FALSE(func->constant());
+    ASSERT_TRUE(func->shared());
+    ASSERT_EQ(func->ret(), entt::Meta::resolve<char>());
+    ASSERT_EQ(func->arg({}), entt::Meta::resolve<char>());
+    ASSERT_EQ(func->arg(entt::MetaFunc::size_type{1}), nullptr);
+
+    ASSERT_TRUE(func->accept<char>());
+    ASSERT_TRUE(func->accept<const char>());
+    ASSERT_TRUE(func->accept<const char &>());
+    ASSERT_FALSE(func->accept<char *>());
+    ASSERT_FALSE(func->accept<int>());
+
+    ASSERT_FALSE(func->invoke(static_cast<const void *>(nullptr), 0).valid());
+    ASSERT_TRUE(func->invoke(static_cast<const void *>(nullptr), '.').valid());
+    ASSERT_FALSE(func->invoke(static_cast<void *>(nullptr), 0).valid());
+    ASSERT_TRUE(func->invoke(static_cast<void *>(nullptr), '.').valid());
+
+    const auto any = func->invoke(nullptr, '.');
+
+    ASSERT_TRUE(any.valid());
+    ASSERT_TRUE(any.convertible<char>());
+    ASSERT_EQ(any.to<char>(), '.');
+
+    ASSERT_NE(func->property(Properties::intProperty), nullptr);
+    ASSERT_TRUE(func->property(Properties::intProperty)->key().convertible<Properties>());
+    ASSERT_EQ(func->property(Properties::intProperty)->key().to<Properties>(), Properties::intProperty);
+    ASSERT_TRUE(func->property(Properties::intProperty)->value().convertible<int>());
+    ASSERT_EQ(func->property(Properties::intProperty)->value().to<int>(), 99);
+    ASSERT_EQ(func->property(Properties::boolProperty), nullptr);
+
+    func->properties([](auto *prop) {
+        ASSERT_TRUE(prop->key().template convertible<Properties>());
+        ASSERT_EQ(prop->key().template to<Properties>(), Properties::intProperty);
+        ASSERT_TRUE(prop->value().template convertible<int>());
+        ASSERT_EQ(prop->value().template to<int>(), 99);
+    });
 }
 
 TEST_F(Meta, MetaType) {
-    // TODO
-}
+    auto *type = entt::Meta::resolve("char");
 
-TEST_F(Meta, Properties) {
-    // TODO
-}
+    ASSERT_STREQ(type->name(), "char");
 
-TEST_F(Meta, Types) {
-    // TODO conversions, decays are set correctly all around, etc.
+    // TODO
 }
 
 TEST_F(Meta, DefDestructor) {
-    // TODO
+    auto *type = entt::Meta::resolve("counter");
+
+    ASSERT_EQ(Counter::value, 0);
+
+    auto any = type->construct();
+
+    ASSERT_TRUE(any.valid());
+    ASSERT_EQ(Counter::value, 1);
+
+    type->destroy(any);
+
+    ASSERT_EQ(Counter::value, 0);
 }
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>OLD
