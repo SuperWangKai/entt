@@ -3,7 +3,6 @@
 
 
 #include <type_traits>
-#include <functional>
 #include <utility>
 #include "../config/config.h"
 
@@ -172,7 +171,7 @@ public:
 
     /*! @brief Default destructor. */
     virtual ~Process() ENTT_NOEXCEPT {
-        static_assert(std::is_base_of<Process, Derived>::value, "!");
+        static_assert(std::is_base_of_v<Process, Derived>);
     }
 
     /**
@@ -235,7 +234,7 @@ public:
         case State::UNINITIALIZED:
             tick(0, tag<State::UNINITIALIZED>{}, data);
             current = State::RUNNING;
-            // no break on purpose, tasks are executed immediately
+            [[fallthrough]];
         case State::RUNNING:
             tick(0, tag<State::RUNNING>{}, delta, data);
         default:

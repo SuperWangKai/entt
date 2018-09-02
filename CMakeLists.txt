@@ -100,7 +100,7 @@ if(HAS_LIBCPP)
     target_compile_options(EnTT BEFORE INTERFACE -stdlib=libc++)
 endif()
 
-target_compile_features(EnTT INTERFACE cxx_std_14)
+target_compile_features(EnTT INTERFACE cxx_std_17)
 
 #
 # Install EnTT

@@ -32,7 +32,7 @@ private:
 };
 
 TEST(Benchmark, Construct) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Constructing 1000000 entities" << std::endl;
 
@@ -46,7 +46,7 @@ TEST(Benchmark, Construct) {
 }
 
 TEST(Benchmark, Destroy) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Destroying 1000000 entities" << std::endl;
 
@@ -64,7 +64,7 @@ TEST(Benchmark, Destroy) {
 }
 
 TEST(Benchmark, IterateCreateDeleteSingleComponent) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Looping 10000 times creating and deleting a random number of entities" << std::endl;
 
@@ -89,7 +89,7 @@ TEST(Benchmark, IterateCreateDeleteSingleComponent) {
 }
 
 TEST(Benchmark, IterateSingleComponent1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, one component" << std::endl;
 
@@ -106,14 +106,12 @@ TEST(Benchmark, IterateSingleComponent1M) {
 
     test([](auto, const auto &) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateSingleComponentRaw1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, one component, raw view" << std::endl;
 
@@ -130,14 +128,12 @@ TEST(Benchmark, IterateSingleComponentRaw1M) {
 
     test([](const auto &) {});
     test([](auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateSingleComponentRuntime1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, one component, runtime view" << std::endl;
 
@@ -147,7 +143,7 @@ TEST(Benchmark, IterateSingleComponentRuntime1M) {
      }
 
     auto test = [&registry](auto func) {
-        using component_type = typename entt::DefaultRegistry::component_type;
+        using component_type = typename entt::Registry<>::component_type;
         component_type types[] = { registry.type<Position>() };
 
         Timer timer;
@@ -162,7 +158,7 @@ TEST(Benchmark, IterateSingleComponentRuntime1M) {
 }
 
 TEST(Benchmark, IterateTwoComponents1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, two components" << std::endl;
 
@@ -180,14 +176,12 @@ TEST(Benchmark, IterateTwoComponents1M) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateTwoComponents1MHalf) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, two components, half of the entities have all the components" << std::endl;
 
@@ -208,14 +202,12 @@ TEST(Benchmark, IterateTwoComponents1MHalf) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateTwoComponents1MOne) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, two components, only one entity has all the components" << std::endl;
 
@@ -236,14 +228,12 @@ TEST(Benchmark, IterateTwoComponents1MOne) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateTwoComponentsPersistent1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
     registry.prepare<Position, Velocity>();
 
     std::cout << "Iterating over 1000000 entities, two components, persistent view" << std::endl;
@@ -262,14 +252,12 @@ TEST(Benchmark, IterateTwoComponentsPersistent1M) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateTwoComponentsRuntime1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
     registry.prepare<Position, Velocity>();
 
     std::cout << "Iterating over 1000000 entities, two components, runtime view" << std::endl;
@@ -281,7 +269,7 @@ TEST(Benchmark, IterateTwoComponentsRuntime1M) {
     }
 
     auto test = [&registry](auto func) {
-        using component_type = typename entt::DefaultRegistry::component_type;
+        using component_type = typename entt::Registry<>::component_type;
         component_type types[] = { registry.type<Position>(), registry.type<Velocity>() };
 
         Timer timer;
@@ -297,7 +285,7 @@ TEST(Benchmark, IterateTwoComponentsRuntime1M) {
 }
 
 TEST(Benchmark, IterateTwoComponentsRuntime1MHalf) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, two components, half of the entities have all the components, runtime view" << std::endl;
 
@@ -311,7 +299,7 @@ TEST(Benchmark, IterateTwoComponentsRuntime1MHalf) {
     }
 
     auto test = [&registry](auto func) {
-        using component_type = typename entt::DefaultRegistry::component_type;
+        using component_type = typename entt::Registry<>::component_type;
         component_type types[] = { registry.type<Position>(), registry.type<Velocity>() };
 
         Timer timer;
@@ -327,7 +315,7 @@ TEST(Benchmark, IterateTwoComponentsRuntime1MHalf) {
 }
 
 TEST(Benchmark, IterateTwoComponentsRuntime1MOne) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, two components, only one entity has all the components, runtime view" << std::endl;
 
@@ -341,7 +329,7 @@ TEST(Benchmark, IterateTwoComponentsRuntime1MOne) {
     }
 
     auto test = [&registry](auto func) {
-        using component_type = typename entt::DefaultRegistry::component_type;
+        using component_type = typename entt::Registry<>::component_type;
         component_type types[] = { registry.type<Position>(), registry.type<Velocity>() };
 
         Timer timer;
@@ -357,7 +345,7 @@ TEST(Benchmark, IterateTwoComponentsRuntime1MOne) {
 }
 
 TEST(Benchmark, IterateFiveComponents1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, five components" << std::endl;
 
@@ -378,14 +366,12 @@ TEST(Benchmark, IterateFiveComponents1M) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateFiveComponents1MHalf) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, five components, half of the entities have all the components" << std::endl;
 
@@ -409,14 +395,12 @@ TEST(Benchmark, IterateFiveComponents1MHalf) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateFiveComponents1MOne) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, five components, only one entity has all the components" << std::endl;
 
@@ -440,14 +424,12 @@ TEST(Benchmark, IterateFiveComponents1MOne) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateFiveComponentsPersistent1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
     registry.prepare<Position, Velocity, Comp<1>, Comp<2>, Comp<3>>();
 
     std::cout << "Iterating over 1000000 entities, five components, persistent view" << std::endl;
@@ -469,14 +451,12 @@ TEST(Benchmark, IterateFiveComponentsPersistent1M) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateFiveComponentsRuntime1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
     registry.prepare<Position, Velocity, Comp<1>, Comp<2>, Comp<3>>();
 
     std::cout << "Iterating over 1000000 entities, five components, runtime view" << std::endl;
@@ -491,7 +471,7 @@ TEST(Benchmark, IterateFiveComponentsRuntime1M) {
     }
 
     auto test = [&registry](auto func) {
-        using component_type = typename entt::DefaultRegistry::component_type;
+        using component_type = typename entt::Registry<>::component_type;
         component_type types[] = {
             registry.type<Position>(),
             registry.type<Velocity>(),
@@ -516,7 +496,7 @@ TEST(Benchmark, IterateFiveComponentsRuntime1M) {
 }
 
 TEST(Benchmark, IterateFiveComponentsRuntime1MHalf) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, five components, half of the entities have all the components, runtime view" << std::endl;
 
@@ -533,7 +513,7 @@ TEST(Benchmark, IterateFiveComponentsRuntime1MHalf) {
     }
 
     auto test = [&registry](auto func) {
-        using component_type = typename entt::DefaultRegistry::component_type;
+        using component_type = typename entt::Registry<>::component_type;
         component_type types[] = {
             registry.type<Position>(),
             registry.type<Velocity>(),
@@ -558,7 +538,7 @@ TEST(Benchmark, IterateFiveComponentsRuntime1MHalf) {
 }
 
 TEST(Benchmark, IterateFiveComponentsRuntime1MOne) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, five components, only one entity has all the components, runtime view" << std::endl;
 
@@ -575,7 +555,7 @@ TEST(Benchmark, IterateFiveComponentsRuntime1MOne) {
     }
 
     auto test = [&registry](auto func) {
-        using component_type = typename entt::DefaultRegistry::component_type;
+        using component_type = typename entt::Registry<>::component_type;
         component_type types[] = {
             registry.type<Position>(),
             registry.type<Velocity>(),
@@ -600,7 +580,7 @@ TEST(Benchmark, IterateFiveComponentsRuntime1MOne) {
 }
 
 TEST(Benchmark, IterateTenComponents1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, ten components" << std::endl;
 
@@ -626,14 +606,12 @@ TEST(Benchmark, IterateTenComponents1M) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateTenComponents1MHalf) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, ten components, half of the entities have all the components" << std::endl;
 
@@ -662,14 +640,12 @@ TEST(Benchmark, IterateTenComponents1MHalf) {
 
     test([](auto, auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateTenComponents1MOne) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, ten components, only one entity has all the components" << std::endl;
 
@@ -698,14 +674,12 @@ TEST(Benchmark, IterateTenComponents1MOne) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateTenComponentsPersistent1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
     registry.prepare<Position, Velocity, Comp<1>, Comp<2>, Comp<3>, Comp<4>, Comp<5>, Comp<6>, Comp<7>, Comp<8>>();
 
     std::cout << "Iterating over 1000000 entities, ten components, persistent view" << std::endl;
@@ -732,14 +706,12 @@ TEST(Benchmark, IterateTenComponentsPersistent1M) {
 
     test([](auto, const auto &...) {});
     test([](auto, auto &... comp) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (comp.x = {}, 0)... };
-        (void)accumulator;
+        ((comp.x = {}), ...);
     });
 }
 
 TEST(Benchmark, IterateTenComponentsRuntime1M) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
     registry.prepare<Position, Velocity, Comp<1>, Comp<2>, Comp<3>, Comp<4>, Comp<5>, Comp<6>, Comp<7>, Comp<8>>();
 
     std::cout << "Iterating over 1000000 entities, ten components, runtime view" << std::endl;
@@ -759,7 +731,7 @@ TEST(Benchmark, IterateTenComponentsRuntime1M) {
     }
 
     auto test = [&registry](auto func) {
-        using component_type = typename entt::DefaultRegistry::component_type;
+        using component_type = typename entt::Registry<>::component_type;
         component_type types[] = {
             registry.type<Position>(),
             registry.type<Velocity>(),
@@ -794,7 +766,7 @@ TEST(Benchmark, IterateTenComponentsRuntime1M) {
 }
 
 TEST(Benchmark, IterateTenComponentsRuntime1MHalf) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, ten components, half of the entities have all the components, runtime view" << std::endl;
 
@@ -816,7 +788,7 @@ TEST(Benchmark, IterateTenComponentsRuntime1MHalf) {
     }
 
     auto test = [&registry](auto func) {
-        using component_type = typename entt::DefaultRegistry::component_type;
+        using component_type = typename entt::Registry<>::component_type;
         component_type types[] = {
             registry.type<Position>(),
             registry.type<Velocity>(),
@@ -851,7 +823,7 @@ TEST(Benchmark, IterateTenComponentsRuntime1MHalf) {
 }
 
 TEST(Benchmark, IterateTenComponentsRuntime1MOne) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Iterating over 1000000 entities, ten components, only one entity has all the components, runtime view" << std::endl;
 
@@ -873,7 +845,7 @@ TEST(Benchmark, IterateTenComponentsRuntime1MOne) {
     }
 
     auto test = [&registry](auto func) {
-        using component_type = typename entt::DefaultRegistry::component_type;
+        using component_type = typename entt::Registry<>::component_type;
         component_type types[] = {
             registry.type<Position>(),
             registry.type<Velocity>(),
@@ -908,7 +880,7 @@ TEST(Benchmark, IterateTenComponentsRuntime1MOne) {
 }
 
 TEST(Benchmark, SortSingle) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Sort 150000 entities, one component" << std::endl;
 
@@ -927,7 +899,7 @@ TEST(Benchmark, SortSingle) {
 }
 
 TEST(Benchmark, SortMulti) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
 
     std::cout << "Sort 150000 entities, two components" << std::endl;
 
@@ -949,8 +921,8 @@ TEST(Benchmark, SortMulti) {
 }
 
 TEST(Benchmark, AlmostSortedStdSort) {
-    entt::DefaultRegistry registry;
-    entt::DefaultRegistry::entity_type entities[3];
+    entt::Registry<> registry;
+    entt::Registry<>::entity_type entities[3];
 
     std::cout << "Sort 150000 entities, almost sorted, std::sort" << std::endl;
 
@@ -979,8 +951,8 @@ TEST(Benchmark, AlmostSortedStdSort) {
 }
 
 TEST(Benchmark, AlmostSortedInsertionSort) {
-    entt::DefaultRegistry registry;
-    entt::DefaultRegistry::entity_type entities[3];
+    entt::Registry<> registry;
+    entt::Registry<>::entity_type entities[3];
 
     std::cout << "Sort 150000 entities, almost sorted, insertion sort" << std::endl;
 

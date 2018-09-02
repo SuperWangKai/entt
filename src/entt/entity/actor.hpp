@@ -175,7 +175,7 @@ struct Actor {
      */
     template<typename Tag>
     inline Tag & get(tag_t) ENTT_NOEXCEPT {
-        return const_cast<Tag &>(const_cast<const Actor *>(this)->get<Tag>(tag_t{}));
+        return const_cast<Tag &>(std::as_const(*this).template get<Tag>(tag_t{}));
     }
 
     /**
@@ -195,7 +195,7 @@ struct Actor {
      */
     template<typename Component>
     inline Component & get() ENTT_NOEXCEPT {
-        return const_cast<Component &>(const_cast<const Actor *>(this)->get<Component>());
+        return const_cast<Component &>(std::as_const(*this).template get<Component>());
     }
 
     /**
@@ -211,7 +211,7 @@ struct Actor {
      * @return A reference to the underlying registry.
      */
     inline registry_type & registry() ENTT_NOEXCEPT {
-        return const_cast<registry_type &>(const_cast<const Actor *>(this)->registry());
+        return const_cast<registry_type &>(std::as_const(*this).registry());
     }
 
     /**
@@ -226,15 +226,6 @@ private:
     registry_type * reg;
     Entity entt;
 };
-
-
-/**
- * @brief Default actor class.
- *
- * The default actor is the best choice for almost all the applications.<br/>
- * Users should have a really good reason to choose something different.
- */
-using DefaultActor = Actor<DefaultRegistry::entity_type>;
 
 
 }

@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <type_traits>
 #include <cassert>
 #include <map>
 #include <string>
@@ -20,131 +21,113 @@ struct DuktapeRuntime {
 };
 
 template<typename Comp>
-duk_ret_t set(duk_context *ctx, entt::DefaultRegistry &registry) {
+duk_ret_t set(duk_context *ctx, entt::Registry<> &registry) {
     const auto entity = duk_require_uint(ctx, 0);
-    registry.accommodate<Comp>(entity);
-    return 0;
-}
 
-template<>
-duk_ret_t set<Position>(duk_context *ctx, entt::DefaultRegistry &registry) {
-    const auto entity = duk_require_uint(ctx, 0);
-    const auto x = duk_require_number(ctx, 2);
-    const auto y = duk_require_number(ctx, 3);
-    registry.accommodate<Position>(entity, x, y);
-    return 0;
-}
-
-template<>
-duk_ret_t set<DuktapeRuntime>(duk_context *ctx, entt::DefaultRegistry &registry) {
-    const auto entity = duk_require_uint(ctx, 0);
-    const auto type = duk_require_uint(ctx, 1);
-
-    duk_dup(ctx, 2);
-
-    if(!registry.has<DuktapeRuntime>(entity)) {
-        registry.assign<DuktapeRuntime>(entity).components[type] = duk_json_encode(ctx, -1);
-    } else {
-        registry.get<DuktapeRuntime>(entity).components[type] = duk_json_encode(ctx, -1);
-    }
-
-    duk_pop(ctx);
-
-    return 0;
-}
-
-template<typename Comp>
-duk_ret_t unset(duk_context *ctx, entt::DefaultRegistry &registry) {
-    const auto entity = duk_require_uint(ctx, 0);
-    registry.remove<Comp>(entity);
-    return 0;
-}
-
-template<>
-duk_ret_t unset<DuktapeRuntime>(duk_context *ctx, entt::DefaultRegistry &registry) {
-    const auto entity = duk_require_uint(ctx, 0);
-    const auto type = duk_require_uint(ctx, 1);
-
-    auto &components = registry.get<DuktapeRuntime>(entity).components;
-    assert(components.find(type) != components.cend());
-    components.erase(type);
-
-    if(components.empty()) {
-        registry.remove<DuktapeRuntime>(entity);
-    }
-
-    return 0;
-}
-
-template<typename Comp>
-duk_ret_t has(duk_context *ctx, entt::DefaultRegistry &registry) {
-    const auto entity = duk_require_uint(ctx, 0);
-    duk_push_boolean(ctx, registry.has<Comp>(entity));
-    return 1;
-}
-
-template<>
-duk_ret_t has<DuktapeRuntime>(duk_context *ctx, entt::DefaultRegistry &registry) {
-    const auto entity = duk_require_uint(ctx, 0);
-    duk_push_boolean(ctx, registry.has<DuktapeRuntime>(entity));
-
-    if(registry.has<DuktapeRuntime>(entity)) {
+    if constexpr(std::is_same_v<Comp, Position>) {
+        const auto x = duk_require_number(ctx, 2);
+        const auto y = duk_require_number(ctx, 3);
+        registry.accommodate<Position>(entity, x, y);
+    } else if constexpr(std::is_same_v<Comp, DuktapeRuntime>) {
         const auto type = duk_require_uint(ctx, 1);
-        const auto &components = registry.get<DuktapeRuntime>(entity).components;
-        duk_push_boolean(ctx, components.find(type) != components.cend());
+
+        duk_dup(ctx, 2);
+
+        if(!registry.has<DuktapeRuntime>(entity)) {
+            registry.assign<DuktapeRuntime>(entity).components[type] = duk_json_encode(ctx, -1);
+        } else {
+            registry.get<DuktapeRuntime>(entity).components[type] = duk_json_encode(ctx, -1);
+        }
+
+        duk_pop(ctx);
     } else {
-        duk_push_false(ctx);
+        registry.accommodate<Comp>(entity);
+    }
+
+    return 0;
+}
+
+template<typename Comp>
+duk_ret_t unset(duk_context *ctx, entt::Registry<> &registry) {
+    const auto entity = duk_require_uint(ctx, 0);
+
+    if constexpr(std::is_same_v<Comp, DuktapeRuntime>) {
+        const auto type = duk_require_uint(ctx, 1);
+
+        auto &components = registry.get<DuktapeRuntime>(entity).components;
+        assert(components.find(type) != components.cend());
+        components.erase(type);
+
+        if(components.empty()) {
+            registry.remove<DuktapeRuntime>(entity);
+        }
+    } else {
+        registry.remove<Comp>(entity);
+    }
+
+    return 0;
+}
+
+template<typename Comp>
+duk_ret_t has(duk_context *ctx, entt::Registry<> &registry) {
+    const auto entity = duk_require_uint(ctx, 0);
+
+    if constexpr(std::is_same_v<Comp, DuktapeRuntime>) {
+        duk_push_boolean(ctx, registry.has<DuktapeRuntime>(entity));
+
+        if(registry.has<DuktapeRuntime>(entity)) {
+            const auto type = duk_require_uint(ctx, 1);
+            const auto &components = registry.get<DuktapeRuntime>(entity).components;
+            duk_push_boolean(ctx, components.find(type) != components.cend());
+        } else {
+            duk_push_false(ctx);
+        }
+    } else {
+        duk_push_boolean(ctx, registry.has<Comp>(entity));
     }
 
     return 1;
 }
 
 template<typename Comp>
-duk_ret_t get(duk_context *ctx, entt::DefaultRegistry &registry) {
-    assert(registry.has<Comp>(duk_require_uint(ctx, 0)));
-    duk_push_object(ctx);
-    return 1;
-}
+duk_ret_t get(duk_context *ctx, entt::Registry<> &registry) {
+    [[maybe_unused]] const auto entity = duk_require_uint(ctx, 0);
 
-template<>
-duk_ret_t get<Position>(duk_context *ctx, entt::DefaultRegistry &registry) {
-    const auto entity = duk_require_uint(ctx, 0);
-    const auto &position = registry.get<Position>(entity);
+    if constexpr(std::is_same_v<Comp, Position>) {
+        const auto &position = registry.get<Position>(entity);
 
-    const auto idx = duk_push_object(ctx);
+        const auto idx = duk_push_object(ctx);
 
-    duk_push_string(ctx, "x");
-    duk_push_number(ctx, position.x);
-    duk_def_prop(ctx, idx, DUK_DEFPROP_HAVE_VALUE);
+        duk_push_string(ctx, "x");
+        duk_push_number(ctx, position.x);
+        duk_def_prop(ctx, idx, DUK_DEFPROP_HAVE_VALUE);
 
-    duk_push_string(ctx, "y");
-    duk_push_number(ctx, position.y);
-    duk_def_prop(ctx, idx, DUK_DEFPROP_HAVE_VALUE);
+        duk_push_string(ctx, "y");
+        duk_push_number(ctx, position.y);
+        duk_def_prop(ctx, idx, DUK_DEFPROP_HAVE_VALUE);
+    } if constexpr(std::is_same_v<Comp, DuktapeRuntime>) {
+        const auto type = duk_require_uint(ctx, 1);
 
-    return 1;
-}
+        auto &runtime = registry.get<DuktapeRuntime>(entity);
+        assert(runtime.components.find(type) != runtime.components.cend());
 
-template<>
-duk_ret_t get<DuktapeRuntime>(duk_context *ctx, entt::DefaultRegistry &registry) {
-    const auto entity = duk_require_uint(ctx, 0);
-    const auto type = duk_require_uint(ctx, 1);
-
-    auto &runtime = registry.get<DuktapeRuntime>(entity);
-    assert(runtime.components.find(type) != runtime.components.cend());
-
-    duk_push_string(ctx, runtime.components[type].c_str());
-    duk_json_decode(ctx, -1);
+        duk_push_string(ctx, runtime.components[type].c_str());
+        duk_json_decode(ctx, -1);
+    } else {
+        assert(registry.has<Comp>(entity));
+        duk_push_object(ctx);
+    }
 
     return 1;
 }
 
 class DuktapeRegistry {
     // I'm pretty sure I won't have more than 99 components in the example
-    static constexpr entt::DefaultRegistry::component_type udef = 100;
+    static constexpr entt::Registry<>::component_type udef = 100;
 
     struct Func {
-        using func_type = duk_ret_t(*)(duk_context *, entt::DefaultRegistry &);
-        using test_type = bool(entt::DefaultRegistry:: *)(entt::DefaultRegistry::entity_type) const;
+        using func_type = duk_ret_t(*)(duk_context *, entt::Registry<> &);
+        using test_type = bool(entt::Registry<>:: *)(entt::Registry<>::entity_type) const;
 
         func_type set;
         func_type unset;
@@ -155,15 +138,13 @@ class DuktapeRegistry {
 
     template<typename... Comp>
     void reg() {
-        using accumulator_type = int[];
-        accumulator_type acc = { (func[registry.type<Comp>()] = {
-                                     &::set<Comp>,
-                                     &::unset<Comp>,
-                                     &::has<Comp>,
-                                     &::get<Comp>,
-                                     &entt::DefaultRegistry::has<Comp>
-                                 }, 0)... };
-        (void)acc;
+        ((func[registry.type<Comp>()] = {
+                &::set<Comp>,
+                &::unset<Comp>,
+                &::has<Comp>,
+                &::get<Comp>,
+                &entt::Registry<>::has<Comp>
+        }), ...);
     }
 
     static DuktapeRegistry & instance(duk_context *ctx) {
@@ -194,7 +175,7 @@ class DuktapeRegistry {
     }
 
 public:
-    DuktapeRegistry(entt::DefaultRegistry &registry)
+    DuktapeRegistry(entt::Registry<> &registry)
         : registry{registry}
     {
         reg<Position, Renderable, DuktapeRuntime>();
@@ -235,8 +216,8 @@ public:
 
         duk_push_array(ctx);
 
-        std::vector<typename entt::DefaultRegistry::component_type> components;
-        std::vector<typename entt::DefaultRegistry::component_type> runtime;
+        std::vector<typename entt::Registry<>::component_type> components;
+        std::vector<typename entt::Registry<>::component_type> runtime;
 
         for(duk_idx_t arg = 0; arg < nargs; arg++) {
             auto type = duk_require_uint(ctx, arg);
@@ -276,7 +257,7 @@ public:
 
 private:
     std::map<duk_uint_t, Func> func;
-    entt::DefaultRegistry &registry;
+    entt::Registry<> &registry;
 };
 
 const duk_function_list_entry js_DuktapeRegistry_methods[] = {
@@ -290,7 +271,7 @@ const duk_function_list_entry js_DuktapeRegistry_methods[] = {
     { nullptr, nullptr, 0 }
 };
 
-void exportTypes(duk_context *ctx, entt::DefaultRegistry &registry) {
+void exportTypes(duk_context *ctx, entt::Registry<> &registry) {
     auto exportType = [](auto *ctx, auto &registry, auto idx, auto type, const auto *name) {
         duk_push_string(ctx, name);
         duk_push_uint(ctx, registry.template type<typename decltype(type)::type>());
@@ -317,7 +298,7 @@ void exportDuktapeRegistry(duk_context *ctx, DuktapeRegistry &dreg) {
 }
 
 TEST(Mod, Duktape) {
-    entt::DefaultRegistry registry;
+    entt::Registry<> registry;
     DuktapeRegistry dreg{registry};
     duk_context *ctx = duk_create_heap_default();
 

@@ -92,7 +92,7 @@ struct Velocity {
     float dy;
 };
 
-void update(entt::DefaultRegistry &registry) {
+void update(entt::Registry &registry) {
     auto view = registry.view<Position, Velocity>();
 
     for(auto entity: view) {
@@ -107,7 +107,7 @@ void update(entt::DefaultRegistry &registry) {
     }
 }
 
-void update(std::uint64_t dt, entt::DefaultRegistry &registry) {
+void update(std::uint64_t dt, entt::Registry &registry) {
     registry.view<Position, Velocity>().each([dt](auto entity, auto &position, auto &velocity) {
         // gets all the components of the view at once ...
 
@@ -119,7 +119,7 @@ void update(std::uint64_t dt, entt::DefaultRegistry &registry) {
 }
 
 int main() {
-    entt::DefaultRegistry registry;
+    entt::Registry registry;
     std::uint64_t dt = 16;
 
     for(auto i = 0; i < 10; ++i) {
@@ -205,7 +205,7 @@ open an issue to discuss your idea.
 ## Requirements
 
 To be able to use `EnTT`, users must provide a full-featured compiler that
-supports at least C++14.<br/>
+supports at least C++17.<br/>
 The requirements below are mandatory to compile the tests and to extract the
 documentation:
 

@@ -517,7 +517,7 @@ public:
      *
      * @param other The sparse sets that imposes the order of the entities.
      */
-    void respect(const SparseSet<Entity> &other) ENTT_NOEXCEPT {
+    void respect(const SparseSet &other) ENTT_NOEXCEPT {
         auto from = other.cbegin();
         auto to = other.cend();
 
@@ -877,7 +877,7 @@ public:
      * @return A reference to the requested element.
      */
     inline object_type & operator[](const size_type pos) ENTT_NOEXCEPT {
-        return const_cast<object_type &>(const_cast<const SparseSet *>(this)->operator[](pos));
+        return const_cast<object_type &>(std::as_const(*this).operator[](pos));
     }
 
     /**
@@ -909,17 +909,16 @@ public:
      * @return The object associated to the entity.
      */
     inline object_type & get(const entity_type entity) ENTT_NOEXCEPT {
-        return const_cast<object_type &>(const_cast<const SparseSet *>(this)->get(entity));
+        return const_cast<object_type &>(std::as_const(*this).get(entity));
     }
 
     /**
      * @brief Assigns an entity to a sparse set and constructs its object.
      *
      * @note
-     * _Sfinae'd_ function.<br/>
-     * This version is used for types that can be constructed in place directly.
-     * It doesn't work well with aggregates because of the placement new usually
-     * performed under the hood during an _emplace back_.
+     * This version accept both types that can be constructed in place directly
+     * and types like aggregates that do not work well with a placement new as
+     * performed usually under the hood during an _emplace back_.
      *
      * @warning
      * Attempting to use an entity that already belongs to the sparse set
@@ -933,38 +932,15 @@ public:
      * @return The object associated to the entity.
      */
     template<typename... Args>
-    std::enable_if_t<std::is_constructible<Type, Args...>::value, object_type &>
-    construct(const entity_type entity, Args &&... args) {
+    object_type & construct(const entity_type entity, Args &&... args) {
         underlying_type::construct(entity);
-        instances.emplace_back(std::forward<Args>(args)...);
-        return instances.back();
-    }
 
-    /**
-     * @brief Assigns an entity to a sparse set and constructs its object.
-     *
-     * @note
-     * _Sfinae'd_ function.<br/>
-     * Fallback for aggregates and types in general that do not work well with a
-     * placement new as performed usually under the hood during an
-     * _emplace back_.
-     *
-     * @warning
-     * Attempting to use an entity that already belongs to the sparse set
-     * results in undefined behavior.<br/>
-     * An assertion will abort the execution at runtime in debug mode if the
-     * sparse set already contains the given entity.
-     *
-     * @tparam Args Types of arguments to use to construct the object.
-     * @param entity A valid entity identifier.
-     * @param args Parameters to use to construct an object for the entity.
-     * @return The object associated to the entity.
-     */
-    template<typename... Args>
-    std::enable_if_t<!std::is_constructible<Type, Args...>::value, object_type &>
-    construct(const entity_type entity, Args &&... args) {
-        underlying_type::construct(entity);
-        instances.emplace_back(Type{std::forward<Args>(args)...});
+        if constexpr(std::is_aggregate_v<Type>) {
+            instances.emplace_back(Type{std::forward<Args>(args)...});
+        } else {
+            instances.emplace_back(std::forward<Args>(args)...);
+        }
+
         return instances.back();
     }
 
@@ -1035,7 +1011,7 @@ public:
         std::iota(copy.begin(), copy.end(), 0);
 
         sort(copy.begin(), copy.end(), [this, compare = std::move(compare)](const auto lhs, const auto rhs) {
-            return compare(const_cast<const object_type &>(instances[rhs]), const_cast<const object_type &>(instances[lhs]));
+            return compare(std::as_const(instances[rhs]), std::as_const(instances[lhs]));
         }, std::forward<Args>(args)...);
 
         for(size_type pos = 0, last = copy.size(); pos < last; ++pos) {

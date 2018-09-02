@@ -102,12 +102,8 @@ struct ServiceLocator final {
     }
 
 private:
-    static std::shared_ptr<Service> service;
+    inline static std::shared_ptr<Service> service = nullptr;
 };
-
-
-template<typename Service>
-std::shared_ptr<Service> ServiceLocator<Service>::service{};
 
 
 }

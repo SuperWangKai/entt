@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cassert>
+#include <numeric>
 #include <iterator>
 #include <algorithm>
 #include <type_traits>
@@ -38,7 +39,7 @@ namespace entt {
  *
  * @tparam Entity A valid entity type (see entt_traits for more details).
  */
-template<typename Entity>
+template<typename Entity = std::uint32_t>
 class Registry {
     using tag_family = Family<struct InternalRegistryTagFamily>;
     using component_family = Family<struct InternalRegistryComponentFamily>;
@@ -118,35 +119,35 @@ class Registry {
         signal_type dtor;
     };
 
-    template<typename handler_family::family_type(*Type)(), typename... Component>
+    template<auto *Type, typename... Component>
     static void creating(Registry &registry, const Entity entity) {
         if(registry.has<Component...>(entity)) {
-            registry.handlers[Type()]->construct(entity);
+            registry.handlers[*Type]->construct(entity);
         }
     }
 
     template<typename... Component>
     static void destroying(Registry &registry, const Entity entity) {
-        auto &handler = *registry.handlers[handler_family::type<Component...>()];
+        auto &handler = *registry.handlers[handler_family::type<Component...>];
         return handler.has(entity) ? handler.destroy(entity) : void();
     }
 
     template<typename Tag>
     inline bool managed(tag_t) const ENTT_NOEXCEPT {
-        const auto ttype = tag_family::type<Tag>();
+        const auto ttype = tag_family::type<Tag>;
         return ttype < tags.size() && tags[ttype];
     }
 
     template<typename Component>
     inline bool managed() const ENTT_NOEXCEPT {
-        const auto ctype = component_family::type<Component>();
+        const auto ctype = component_family::type<Component>;
         return ctype < pools.size() && pools[ctype];
     }
 
     template<typename Tag>
     inline const Attaching<Tag> & pool(tag_t) const ENTT_NOEXCEPT {
         assert(managed<Tag>(tag_t{}));
-        return static_cast<const Attaching<Tag> &>(*tags[tag_family::type<Tag>()]);
+        return static_cast<const Attaching<Tag> &>(*tags[tag_family::type<Tag>]);
     }
 
     template<typename Tag>
@@ -157,7 +158,7 @@ class Registry {
     template<typename Component>
     inline const Pool<Component> & pool() const ENTT_NOEXCEPT {
         assert(managed<Component>());
-        return static_cast<const Pool<Component> &>(*pools[component_family::type<Component>()]);
+        return static_cast<const Pool<Component> &>(*pools[component_family::type<Component>]);
     }
 
     template<typename Component>
@@ -165,36 +166,33 @@ class Registry {
         return const_cast<Pool<Component> &>(const_cast<const Registry *>(this)->pool<Component>());
     }
 
-    template<typename Comp, std::size_t Pivot, typename... Component, std::size_t... Indexes>
+    template<typename Comp, std::size_t Index, typename... Component, std::size_t... Indexes>
     void connect(std::index_sequence<Indexes...>) {
-        pool<Comp>().construction().template connect<&Registry::creating<&handler_family::type<Component...>, std::tuple_element_t<(Indexes < Pivot ? Indexes : (Indexes+1)), std::tuple<Component...>>...>>();
+        pool<Comp>().construction().template connect<&Registry::creating<&handler_family::type<Component...>, std::tuple_element_t<(Indexes < Index ? Indexes : (Indexes+1)), std::tuple<Component...>>...>>();
         pool<Comp>().destruction().template connect<&Registry::destroying<Component...>>();
     }
 
     template<typename... Component, std::size_t... Indexes>
     void connect(std::index_sequence<Indexes...>) {
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (assure<Component>(), connect<Component, Indexes, Component...>(std::make_index_sequence<sizeof...(Component)-1>{}), 0)... };
-        (void)accumulator;
+        (assure<Component>(), ...);
+        (connect<Component, Indexes, Component...>(std::make_index_sequence<sizeof...(Component)-1>{}), ...);
     }
 
-    template<typename Comp, std::size_t Pivot, typename... Component, std::size_t... Indexes>
+    template<typename Comp, std::size_t Index, typename... Component, std::size_t... Indexes>
     void disconnect(std::index_sequence<Indexes...>) {
-        pool<Comp>().construction().template disconnect<&Registry::creating<&handler_family::type<Component...>, std::tuple_element_t<(Indexes < Pivot ? Indexes : (Indexes+1)), std::tuple<Component...>>...>>();
+        pool<Comp>().construction().template disconnect<&Registry::creating<&handler_family::type<Component...>, std::tuple_element_t<(Indexes < Index ? Indexes : (Indexes+1)), std::tuple<Component...>>...>>();
         pool<Comp>().destruction().template disconnect<&Registry::destroying<Component...>>();
     }
 
     template<typename... Component, std::size_t... Indexes>
     void disconnect(std::index_sequence<Indexes...>) {
-        using accumulator_type = int[];
         // if a set exists, pools have already been created for it
-        accumulator_type accumulator = { (disconnect<Component, Indexes, Component...>(std::make_index_sequence<sizeof...(Component)-1>{}), 0)... };
-        (void)accumulator;
+        (disconnect<Component, Indexes, Component...>(std::make_index_sequence<sizeof...(Component)-1>{}), ...);
     }
 
     template<typename Component>
     void assure() {
-        const auto ctype = component_family::type<Component>();
+        const auto ctype = component_family::type<Component>;
 
         if(!(ctype < pools.size())) {
             pools.resize(ctype + 1);
@@ -207,7 +205,7 @@ class Registry {
 
     template<typename Tag>
     void assure(tag_t) {
-        const auto ttype = tag_family::type<Tag>();
+        const auto ttype = tag_family::type<Tag>;
 
         if(!(ttype < tags.size())) {
             tags.resize(ttype + 1);
@@ -259,7 +257,7 @@ public:
      */
     template<typename Tag>
     static tag_type type(tag_t) ENTT_NOEXCEPT {
-        return tag_family::type<Tag>();
+        return tag_family::type<Tag>;
     }
 
     /**
@@ -276,7 +274,7 @@ public:
      */
     template<typename Component>
     static component_type type() ENTT_NOEXCEPT {
-        return component_family::type<Component>();
+        return component_family::type<Component>;
     }
 
     /**
@@ -405,7 +403,7 @@ public:
      */
     template<typename Component>
     inline Component * raw() ENTT_NOEXCEPT {
-        return const_cast<Component *>(const_cast<const Registry *>(this)->raw<Component>());
+        return const_cast<Component *>(std::as_const(*this).template raw<Component>());
     }
 
     /**
@@ -724,7 +722,7 @@ public:
      */
     template<typename Tag>
     bool has() const ENTT_NOEXCEPT {
-        return managed<Tag>(tag_t{}) && tags[tag_family::type<Tag>()]->get() != null;
+        return managed<Tag>(tag_t{}) && tags[tag_family::type<Tag>]->get() != null;
     }
 
     /**
@@ -760,11 +758,7 @@ public:
     template<typename... Component>
     bool has(const entity_type entity) const ENTT_NOEXCEPT {
         assert(valid(entity));
-        bool all = true;
-        using accumulator_type = bool[];
-        accumulator_type accumulator = { all, (all = all && managed<Component>() && pool<Component>().has(entity))... };
-        (void)accumulator;
-        return all;
+        return ((managed<Component>() && pool<Component>().has(entity)) && ...);
     }
 
     /**
@@ -799,11 +793,11 @@ public:
      */
     template<typename Tag>
     inline Tag & get() ENTT_NOEXCEPT {
-        return const_cast<Tag &>(const_cast<const Registry *>(this)->get<Tag>());
+        return const_cast<Tag &>(std::as_const(*this).template get<Tag>());
     }
 
     /**
-     * @brief Returns a reference to the given component for an entity.
+     * @brief Returns references to the given components for an entity.
      *
      * @warning
      * Attempting to use an invalid entity or to get a component from an entity
@@ -812,19 +806,24 @@ public:
      * invalid entity or if the entity doesn't own an instance of the given
      * component.
      *
-     * @tparam Component Type of component to get.
+     * @tparam Component Types of components to get.
      * @param entity A valid entity identifier.
-     * @return A reference to the component owned by the entity.
+     * @return References to the components owned by the entity.
      */
-    template<typename Component>
-    const Component & get(const entity_type entity) const ENTT_NOEXCEPT {
+    template<typename... Component>
+    decltype(auto) get([[maybe_unused]] const entity_type entity) const ENTT_NOEXCEPT {
         assert(valid(entity));
-        assert(managed<Component>());
-        return pool<Component>().get(entity);
+        assert((managed<Component>() && ...));
+
+        if constexpr(sizeof...(Component) == 1) {
+            return pool<Component...>().get(entity);
+        } else {
+            return std::tuple<const Component &...>{get<Component>(entity)...};
+        }
     }
 
     /**
-     * @brief Returns a reference to the given component for an entity.
+     * @brief Returns references to the given components for an entity.
      *
      * @warning
      * Attempting to use an invalid entity or to get a component from an entity
@@ -833,53 +832,17 @@ public:
      * invalid entity or if the entity doesn't own an instance of the given
      * component.
      *
-     * @tparam Component Type of component to get.
-     * @param entity A valid entity identifier.
-     * @return A reference to the component owned by the entity.
-     */
-    template<typename Component>
-    inline Component & get(const entity_type entity) ENTT_NOEXCEPT {
-        return const_cast<Component &>(const_cast<const Registry *>(this)->get<Component>(entity));
-    }
-
-    /**
-     * @brief Returns a reference to the given components for an entity.
-     *
-     * @warning
-     * Attempting to use an invalid entity or to get components from an entity
-     * that doesn't own them results in undefined behavior.<br/>
-     * An assertion will abort the execution at runtime in debug mode in case of
-     * invalid entity or if the entity doesn't own instances of the given
-     * components.
-     *
-     * @tparam Component Type of components to get.
+     * @tparam Component Types of components to get.
      * @param entity A valid entity identifier.
      * @return References to the components owned by the entity.
      */
     template<typename... Component>
-    inline std::enable_if_t<(sizeof...(Component) > 1), std::tuple<const Component &...>>
-    get(const entity_type entity) const ENTT_NOEXCEPT {
-        return std::tuple<const Component &...>{get<Component>(entity)...};
-    }
-
-    /**
-     * @brief Returns a reference to the given components for an entity.
-     *
-     * @warning
-     * Attempting to use an invalid entity or to get components from an entity
-     * that doesn't own them results in undefined behavior.<br/>
-     * An assertion will abort the execution at runtime in debug mode in case of
-     * invalid entity or if the entity doesn't own instances of the given
-     * components.
-     *
-     * @tparam Component Type of components to get.
-     * @param entity A valid entity identifier.
-     * @return References to the components owned by the entity.
-     */
-    template<typename... Component>
-    inline std::enable_if_t<(sizeof...(Component) > 1), std::tuple<Component &...>>
-    get(const entity_type entity) ENTT_NOEXCEPT {
-        return std::tuple<Component &...>{get<Component>(entity)...};
+    inline decltype(auto) get([[maybe_unused]] const entity_type entity) ENTT_NOEXCEPT {
+        if constexpr(sizeof...(Component) == 1) {
+            return (const_cast<Component &>(std::as_const(*this).template get<Component>(entity)), ...);
+        } else {
+            return std::tuple<Component &...>{get<Component>(entity)...};
+        }
     }
 
     /**
@@ -961,7 +924,7 @@ public:
      */
     template<typename Tag>
     entity_type attachee() const ENTT_NOEXCEPT {
-        return managed<Tag>(tag_t{}) ? tags[tag_family::type<Tag>()]->get() : null;
+        return managed<Tag>(tag_t{}) ? tags[tag_family::type<Tag>]->get() : null;
     }
 
     /**
@@ -1008,7 +971,7 @@ public:
      * whenever a new instance of the given tag is created and assigned to an
      * entity.
      *
-     * The function type for a listener is:
+     * The function type for a listener is equivalent to:
      * @code{.cpp}
      * void(Registry<Entity> &, Entity);
      * @endcode
@@ -1037,7 +1000,7 @@ public:
      * whenever a new instance of the given component is created and assigned to
      * an entity.
      *
-     * The function type for a listener is:
+     * The function type for a listener is equivalent to:
      * @code{.cpp}
      * void(Registry<Entity> &, Entity);
      * @endcode
@@ -1066,7 +1029,7 @@ public:
      * whenever an instance of the given tag is removed from an entity and thus
      * destroyed.
      *
-     * The function type for a listener is:
+     * The function type for a listener is equivalent to:
      * @code{.cpp}
      * void(Registry<Entity> &, Entity);
      * @endcode
@@ -1095,7 +1058,7 @@ public:
      * whenever an instance of the given component is removed from an entity and
      * thus destroyed.
      *
-     * The function type for a listener is:
+     * The function type for a listener is equivalent to:
      * @code{.cpp}
      * void(Registry<Entity> &, Entity);
      * @endcode
@@ -1384,7 +1347,8 @@ public:
      */
     template<typename... Component>
     View<Entity, Component...> view() {
-        return View<Entity, Component...>{(assure<Component>(), pool<Component>())...};
+        (assure<Component>(), ...);
+        return View{pool<Component>()...};
     }
 
     /**
@@ -1405,8 +1369,8 @@ public:
      */
     template<typename... Component>
     void prepare() {
-        static_assert(sizeof...(Component) > 1, "!");
-        const auto htype = handler_family::type<Component...>();
+        static_assert(sizeof...(Component) > 1);
+        const auto htype = handler_family::type<Component...>;
 
         if(!(htype < handlers.size())) {
             handlers.resize(htype + 1);
@@ -1442,7 +1406,7 @@ public:
     void discard() {
         if(contains<Component...>()) {
             disconnect<Component...>(std::make_index_sequence<sizeof...(Component)>{});
-            handlers[handler_family::type<Component...>()].reset();
+            handlers[handler_family::type<Component...>].reset();
         }
     }
 
@@ -1453,8 +1417,8 @@ public:
      */
     template<typename... Component>
     bool contains() const ENTT_NOEXCEPT {
-        static_assert(sizeof...(Component) > 1, "!");
-        const auto htype = handler_family::type<Component...>();
+        static_assert(sizeof...(Component) > 1);
+        const auto htype = handler_family::type<Component...>;
         return (htype < handlers.size() && handlers[htype]);
     }
 
@@ -1500,8 +1464,8 @@ public:
     template<typename... Component>
     PersistentView<Entity, Component...> view(persistent_t) {
         prepare<Component...>();
-        const auto htype = handler_family::type<Component...>();
-        return PersistentView<Entity, Component...>{*handlers[htype], (assure<Component>(), pool<Component>())...};
+        (assure<Component>(), ...);
+        return PersistentView{*handlers[handler_family::type<Component...>], pool<Component>()...};
     }
 
     /**
@@ -1530,7 +1494,7 @@ public:
     template<typename Component>
     RawView<Entity, Component> view(raw_t) {
         assure<Component>();
-        return RawView<Entity, Component>{pool<Component>()};
+        return RawView{pool<Component>()};
     }
 
     /**
@@ -1561,14 +1525,14 @@ public:
      */
     template<typename It>
     RuntimeView<Entity> view(It first, It last) {
-        static_assert(std::is_convertible<typename std::iterator_traits<It>::value_type, component_type>::value, "!");
+        static_assert(std::is_convertible_v<typename std::iterator_traits<It>::value_type, component_type>);
         std::vector<const SparseSet<Entity> *> set(last - first);
 
         std::transform(first, last, set.begin(), [this](const component_type ctype) {
             return ctype < pools.size() ? pools[ctype].get() : nullptr;
         });
 
-        return RuntimeView<Entity>{std::move(set)};
+        return RuntimeView{std::move(set)};
     }
 
     /**
@@ -1645,15 +1609,6 @@ private:
     size_type available{};
     entity_type next{};
 };
-
-
-/**
- * @brief Default registry class.
- *
- * The default registry is the best choice for almost all the applications.<br/>
- * Users should have a really good reason to choose something different.
- */
-using DefaultRegistry = Registry<std::uint32_t>;
 
 
 }

@@ -74,7 +74,7 @@ listeners in all their forms by means of a sink:
 void foo(int, char) { /* ... */ }
 
 struct S {
-    void bar(int, char) { /* ... */ }
+    void bar(const int &, char) { /* ... */ }
 };
 
 // ...
@@ -82,7 +82,7 @@ struct S {
 S instance;
 
 signal.sink().connect<&foo>();
-signal.sink().connect<S, &S::bar>(&instance);
+signal.sink().connect<&S::bar>(&instance);
 
 // ...
 
@@ -90,7 +90,7 @@ signal.sink().connect<S, &S::bar>(&instance);
 signal.sink().disconnect<&foo>();
 
 // disconnect a specific member function of an instance ...
-signal.sink().disconnect<S, &S::bar>(&instance);
+signal.sink().disconnect<&S::bar>(&instance);
 
 // ... or an instance as a whole
 signal.sink().disconnect(&instance);
@@ -98,6 +98,10 @@ signal.sink().disconnect(&instance);
 // discards all the listeners at once
 signal.sink().disconnect();
 ```
+
+As shown above, listeners do not have to strictly follow the signature of the
+signal. As long as a listener can be invoked with the given arguments to yield a
+result that is convertible to the given result type, everything works just fine.
 
 Once listeners are attached (or even if there are no listeners at all), events
 and data in general can be published through a signal by means of the `publish`
@@ -171,7 +175,7 @@ There exist two functions to do that, both named `connect`:
 int f(int i) { return i; }
 
 struct MyStruct {
-    int f(int i) { return i }
+    int f(const int &i) { return i }
 };
 
 // bind a free function to the delegate
@@ -179,7 +183,7 @@ delegate.connect<&f>();
 
 // bind a member function to the delegate
 MyStruct instance;
-delegate.connect<MyStruct, &MyStruct::f>(&instance);
+delegate.connect<&MyStruct::f>(&instance);
 ```
 
 It hasn't a `disconnect` counterpart. Instead, there exists a `reset` member
@@ -196,6 +200,11 @@ usual:
 ```cpp
 auto ret = delegate(42);
 ```
+
+As shown above, listeners do not have to strictly follow the signature of the
+delegate. As long as a listener can be invoked with the given arguments to yield
+a result that is convertible to the given result type, everything works just
+fine.
 
 Probably too much small and pretty poor of functionalities, but the delegate
 class can help in a lot of cases and it has shown that it is worth keeping it
@@ -215,8 +224,9 @@ entt::Dispatcher dispatcher{};
 ```
 
 In order to register an instance of a class to a dispatcher, its type must
-expose one or more member functions of which the return types are `void` and the
-argument lists are `const E &`, for each type of event `E`.<br/>
+expose one or more member functions the arguments of which are such that
+`const E &` can be converted to them for each type of event `E`, no matter what
+the return value is.<br/>
 To ease the development, member functions that are named `receive` are
 automatically detected and have not to be explicitly specified when registered.
 In all the other cases, the name of the member function aimed to receive the
@@ -237,7 +247,7 @@ struct Listener
 
 Listener listener;
 dispatcher.sink<AnEvent>().connect(&listener);
-dispatcher.sink<AnotherEvent>().connect<Listener, &Listener::method>(&listener);
+dispatcher.sink<AnotherEvent>().connect<&Listener::method>(&listener);
 ```
 
 The `disconnect` member function follows the same pattern and can be used to
@@ -245,7 +255,7 @@ selectively remove listeners:
 
 ```cpp
 dispatcher.sink<AnEvent>().disconnect(&listener);
-dispatcher.sink<AnotherEvent>().disconnect<Listener, &Listener::method>(&listener);
+dispatcher.sink<AnotherEvent>().disconnect<&Listener::method>(&listener);
 ```
 
 The `trigger` member function serves the purpose of sending an immediate event

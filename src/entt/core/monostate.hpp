@@ -46,13 +46,8 @@ struct Monostate {
 
 private:
     template<typename Type>
-    static std::atomic<Type> value;
+    static inline std::atomic<Type> value;
 };
-
-
-template<HashedString::hash_type ID>
-template<typename Type>
-std::atomic<Type> Monostate<ID>::value{};
 
 
 }

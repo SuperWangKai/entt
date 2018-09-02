@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <entt/signal/delegate.hpp>
 
-int delegateFunction(int i) {
+int delegateFunction(const int &i) {
     return i*i;
 }
 
@@ -26,9 +26,10 @@ TEST(Delegate, Functionalities) {
 
     ASSERT_TRUE(ffdel.empty());
     ASSERT_TRUE(mfdel.empty());
+    ASSERT_EQ(ffdel, mfdel);
 
     ffdel.connect<&delegateFunction>();
-    mfdel.connect<DelegateFunctor, &DelegateFunctor::operator()>(&functor);
+    mfdel.connect<&DelegateFunctor::operator()>(&functor);
 
     ASSERT_FALSE(ffdel.empty());
     ASSERT_FALSE(mfdel.empty());
@@ -37,10 +38,12 @@ TEST(Delegate, Functionalities) {
     ASSERT_EQ(mfdel(3), 6);
 
     ffdel.reset();
-    mfdel.reset();
 
     ASSERT_TRUE(ffdel.empty());
-    ASSERT_TRUE(mfdel.empty());
+    ASSERT_FALSE(mfdel.empty());
+
+    ASSERT_EQ(ffdel, entt::Delegate<int(int)>{});
+    ASSERT_NE(ffdel, mfdel);
 }
 
 TEST(Delegate, Comparison) {
@@ -59,16 +62,16 @@ TEST(Delegate, ConstNonConstNoExcept) {
     entt::Delegate<void()> delegate;
     ConstNonConstNoExcept functor;
 
-    delegate.connect<ConstNonConstNoExcept, &ConstNonConstNoExcept::f>(&functor);
+    delegate.connect<&ConstNonConstNoExcept::f>(&functor);
     delegate();
 
-    delegate.connect<ConstNonConstNoExcept, &ConstNonConstNoExcept::g>(&functor);
+    delegate.connect<&ConstNonConstNoExcept::g>(&functor);
     delegate();
 
-    delegate.connect<ConstNonConstNoExcept, &ConstNonConstNoExcept::h>(&functor);
+    delegate.connect<&ConstNonConstNoExcept::h>(&functor);
     delegate();
 
-    delegate.connect<ConstNonConstNoExcept, &ConstNonConstNoExcept::i>(&functor);
+    delegate.connect<&ConstNonConstNoExcept::i>(&functor);
     delegate();
 
     ASSERT_EQ(functor.cnt, 4);

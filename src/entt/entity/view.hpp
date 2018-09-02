@@ -4,6 +4,7 @@
 
 #include <iterator>
 #include <cassert>
+#include <cstddef>
 #include <array>
 #include <tuple>
 #include <vector>
@@ -69,7 +70,7 @@ class Registry;
  */
 template<typename Entity, typename... Component>
 class PersistentView final {
-    static_assert(sizeof...(Component) > 1, "!");
+    static_assert(sizeof...(Component) > 1);
 
     /*! @brief A registry is allowed to create views. */
     friend class Registry<Entity>;
@@ -256,7 +257,7 @@ public:
     }
 
     /**
-     * @brief Returns the component assigned to the given entity.
+     * @brief Returns the components assigned to the given entity.
      *
      * Prefer this function instead of `Registry::get` during iterations. It has
      * far better performance than its companion function.
@@ -268,18 +269,24 @@ public:
      * An assertion will abort the execution at runtime in debug mode if the
      * view doesn't contain the given entity.
      *
-     * @tparam Comp Type of component to get.
+     * @tparam Comp Types of components to get.
      * @param entity A valid entity identifier.
-     * @return The component assigned to the entity.
+     * @return The components assigned to the entity.
      */
-    template<typename Comp>
-    const Comp & get(const entity_type entity) const ENTT_NOEXCEPT {
+    template<typename... Comp>
+    std::conditional_t<sizeof...(Comp) == 1, std::tuple_element_t<0, std::tuple<const Comp &...>>, std::tuple<const Comp &...>>
+    get([[maybe_unused]] const entity_type entity) const ENTT_NOEXCEPT {
         assert(contains(entity));
-        return std::get<pool_type<Comp> &>(pools).get(entity);
+
+        if constexpr(sizeof...(Comp) == 1) {
+            return (std::get<pool_type<Comp> &>(pools).get(entity), ...);
+        } else {
+            return std::tuple<const Comp &...>{get<Comp>(entity)...};
+        }
     }
 
     /**
-     * @brief Returns the component assigned to the given entity.
+     * @brief Returns the components assigned to the given entity.
      *
      * Prefer this function instead of `Registry::get` during iterations. It has
      * far better performance than its companion function.
@@ -291,61 +298,18 @@ public:
      * An assertion will abort the execution at runtime in debug mode if the
      * view doesn't contain the given entity.
      *
-     * @tparam Comp Type of component to get.
-     * @param entity A valid entity identifier.
-     * @return The component assigned to the entity.
-     */
-    template<typename Comp>
-    inline Comp & get(const entity_type entity) ENTT_NOEXCEPT {
-        return const_cast<Comp &>(const_cast<const PersistentView *>(this)->get<Comp>(entity));
-    }
-
-    /**
-     * @brief Returns the components assigned to the given entity.
-     *
-     * Prefer this function instead of `Registry::get` during iterations. It has
-     * far better performance than its companion function.
-     *
-     * @warning
-     * Attempting to use invalid component types results in a compilation error.
-     * Attempting to use an entity that doesn't belong to the view results in
-     * undefined behavior.<br/>
-     * An assertion will abort the execution at runtime in debug mode if the
-     * view doesn't contain the given entity.
-     *
-     * @tparam Comp Types of the components to get.
+     * @tparam Comp Types of components to get.
      * @param entity A valid entity identifier.
      * @return The components assigned to the entity.
      */
     template<typename... Comp>
-    inline std::enable_if_t<(sizeof...(Comp) > 1), std::tuple<const Comp &...>>
-    get(const entity_type entity) const ENTT_NOEXCEPT {
-        assert(contains(entity));
-        return std::tuple<const Comp &...>{get<Comp>(entity)...};
-    }
-
-    /**
-     * @brief Returns the components assigned to the given entity.
-     *
-     * Prefer this function instead of `Registry::get` during iterations. It has
-     * far better performance than its companion function.
-     *
-     * @warning
-     * Attempting to use invalid component types results in a compilation error.
-     * Attempting to use an entity that doesn't belong to the view results in
-     * undefined behavior.<br/>
-     * An assertion will abort the execution at runtime in debug mode if the
-     * view doesn't contain the given entity.
-     *
-     * @tparam Comp Types of the components to get.
-     * @param entity A valid entity identifier.
-     * @return The components assigned to the entity.
-     */
-    template<typename... Comp>
-    inline std::enable_if_t<(sizeof...(Comp) > 1), std::tuple<Comp &...>>
-    get(const entity_type entity) ENTT_NOEXCEPT {
-        assert(contains(entity));
-        return std::tuple<Comp &...>{get<Comp>(entity)...};
+    inline std::conditional_t<sizeof...(Comp) == 1, std::tuple_element_t<0, std::tuple<Comp &...>>, std::tuple<Comp &...>>
+    get([[maybe_unused]] const entity_type entity) ENTT_NOEXCEPT {
+        if constexpr(sizeof...(Comp) == 1) {
+            return (const_cast<Comp &>(std::as_const(*this).template get<Comp>(entity)), ...);
+        } else {
+            return std::tuple<Comp &...>{get<Comp>(entity)...};
+        }
     }
 
     /**
@@ -389,7 +353,7 @@ public:
      */
     template<typename Func>
     inline void each(Func func) {
-        const_cast<const PersistentView *>(this)->each([&func](const entity_type entity, const Component &... component) {
+        std::as_const(*this).each([&func](const entity_type entity, const Component &... component) {
             func(entity, const_cast<Component &>(component)...);
         });
     }
@@ -464,7 +428,7 @@ private:
  */
 template<typename Entity, typename... Component>
 class View final {
-    static_assert(sizeof...(Component) > 1, "!");
+    static_assert(sizeof...(Component) > 1);
 
     /*! @brief A registry is allowed to create views. */
     friend class Registry<Entity>;
@@ -573,19 +537,18 @@ class View final {
     unchecked_type unchecked(const view_type *view) const ENTT_NOEXCEPT {
         unchecked_type other{};
         std::size_t pos{};
-        using accumulator_type = const view_type *[];
-        accumulator_type accumulator = { (&pool<Component>() == view ? view : other[pos++] = &pool<Component>())... };
-        (void)accumulator;
+        ((&pool<Component>() == view ? nullptr : (other[pos++] = &pool<Component>())), ...);
         return other;
     }
 
     template<typename Comp, typename Other>
-    inline std::enable_if_t<std::is_same<Comp, Other>::value, const Other &>
-    get(const component_iterator_type<Comp> &it, const Entity) const ENTT_NOEXCEPT { return *it; }
-
-    template<typename Comp, typename Other>
-    inline std::enable_if_t<!std::is_same<Comp, Other>::value, const Other &>
-    get(const component_iterator_type<Comp> &, const Entity entity) const ENTT_NOEXCEPT { return pool<Other>().get(entity); }
+    inline const Other & get([[maybe_unused]] const component_iterator_type<Comp> &it, [[maybe_unused]] const Entity entity) const ENTT_NOEXCEPT {
+        if constexpr(std::is_same_v<Comp, Other>) {
+            return *it;
+        } else {
+            return pool<Other>().get(entity);
+        }
+    }
 
     template<typename Comp, typename Func, std::size_t... Indexes>
     void each(const pool_type<Comp> &cpool, Func func, std::index_sequence<Indexes...>) const {
@@ -597,7 +560,7 @@ class View final {
         auto begin = cpool.view_type::cbegin();
 
         // we can directly use the raw iterators if pools are ordered
-        while(begin != end && std::min({ (*(std::get<Indexes>(data)++) == *begin)... })) {
+        while(((begin != end) && ... && (*begin == *(std::get<Indexes>(data)++)))) {
             func(*(begin++), *(std::get<component_iterator_type<Component>>(raw)++)...);
         }
 
@@ -607,7 +570,7 @@ class View final {
             const auto it = std::get<component_iterator_type<Comp>>(raw)++;
             const auto sz = size_type(entity & traits_type::entity_mask);
 
-            if(sz < extent && std::all_of(other.cbegin(), other.cend(), [entity](const view_type *view) { return view->fast(entity); })) {
+            if(((sz < extent) && ... && std::get<Indexes>(other)->fast(entity))) {
                 // avoided at least the indirection due to the sparse set for the pivot type (see get for more details)
                 func(entity, get<Comp, Component>(it, entity)...);
             }
@@ -637,7 +600,7 @@ public:
      * @return True if the view is definitely empty, false otherwise.
      */
     bool empty() const ENTT_NOEXCEPT {
-        return std::max({ pool<Component>().empty()... });
+        return (pool<Component>().empty() || ...);
     }
 
     /**
@@ -761,11 +724,11 @@ public:
     bool contains(const entity_type entity) const ENTT_NOEXCEPT {
         const auto sz = size_type(entity & traits_type::entity_mask);
         const auto extent = std::min({ pool<Component>().extent()... });
-        return sz < extent && std::min({ (pool<Component>().has(entity) && (pool<Component>().data()[pool<Component>().view_type::get(entity)] == entity))... });
+        return ((sz < extent) && ... && (pool<Component>().has(entity) && (pool<Component>().data()[pool<Component>().view_type::get(entity)] == entity)));
     }
 
     /**
-     * @brief Returns the component assigned to the given entity.
+     * @brief Returns the components assigned to the given entity.
      *
      * Prefer this function instead of `Registry::get` during iterations. It has
      * far better performance than its companion function.
@@ -777,18 +740,24 @@ public:
      * An assertion will abort the execution at runtime in debug mode if the
      * view doesn't contain the given entity.
      *
-     * @tparam Comp Type of component to get.
+     * @tparam Comp Types of components to get.
      * @param entity A valid entity identifier.
-     * @return The component assigned to the entity.
+     * @return The components assigned to the entity.
      */
-    template<typename Comp>
-    const Comp & get(const entity_type entity) const ENTT_NOEXCEPT {
+    template<typename... Comp>
+    std::conditional_t<sizeof...(Comp) == 1, std::tuple_element_t<0, std::tuple<const Comp &...>>, std::tuple<const Comp &...>>
+    get([[maybe_unused]] const entity_type entity) const ENTT_NOEXCEPT {
         assert(contains(entity));
-        return pool<Comp>().get(entity);
+
+        if constexpr(sizeof...(Comp) == 1) {
+            return (pool<Comp>().get(entity), ...);
+        } else {
+            return std::tuple<const Comp &...>{get<Comp>(entity)...};
+        }
     }
 
     /**
-     * @brief Returns the component assigned to the given entity.
+     * @brief Returns the components assigned to the given entity.
      *
      * Prefer this function instead of `Registry::get` during iterations. It has
      * far better performance than its companion function.
@@ -800,61 +769,18 @@ public:
      * An assertion will abort the execution at runtime in debug mode if the
      * view doesn't contain the given entity.
      *
-     * @tparam Comp Type of component to get.
-     * @param entity A valid entity identifier.
-     * @return The component assigned to the entity.
-     */
-    template<typename Comp>
-    inline Comp & get(const entity_type entity) ENTT_NOEXCEPT {
-        return const_cast<Comp &>(const_cast<const View *>(this)->get<Comp>(entity));
-    }
-
-    /**
-     * @brief Returns the components assigned to the given entity.
-     *
-     * Prefer this function instead of `Registry::get` during iterations. It has
-     * far better performance than its companion function.
-     *
-     * @warning
-     * Attempting to use invalid component types results in a compilation error.
-     * Attempting to use an entity that doesn't belong to the view results in
-     * undefined behavior.<br/>
-     * An assertion will abort the execution at runtime in debug mode if the
-     * view doesn't contain the given entity.
-     *
-     * @tparam Comp Types of the components to get.
+     * @tparam Comp Types of components to get.
      * @param entity A valid entity identifier.
      * @return The components assigned to the entity.
      */
     template<typename... Comp>
-    inline std::enable_if_t<(sizeof...(Comp) > 1), std::tuple<const Comp &...>>
-    get(const entity_type entity) const ENTT_NOEXCEPT {
-        assert(contains(entity));
-        return std::tuple<const Comp &...>{get<Comp>(entity)...};
-    }
-
-    /**
-     * @brief Returns the components assigned to the given entity.
-     *
-     * Prefer this function instead of `Registry::get` during iterations. It has
-     * far better performance than its companion function.
-     *
-     * @warning
-     * Attempting to use invalid component types results in a compilation error.
-     * Attempting to use an entity that doesn't belong to the view results in
-     * undefined behavior.<br/>
-     * An assertion will abort the execution at runtime in debug mode if the
-     * view doesn't contain the given entity.
-     *
-     * @tparam Comp Types of the components to get.
-     * @param entity A valid entity identifier.
-     * @return The components assigned to the entity.
-     */
-    template<typename... Comp>
-    inline std::enable_if_t<(sizeof...(Comp) > 1), std::tuple<Comp &...>>
-    get(const entity_type entity) ENTT_NOEXCEPT {
-        assert(contains(entity));
-        return std::tuple<Comp &...>{get<Comp>(entity)...};
+    inline std::conditional_t<sizeof...(Comp) == 1, std::tuple_element_t<0, std::tuple<Comp &...>>, std::tuple<Comp &...>>
+    get([[maybe_unused]] const entity_type entity) ENTT_NOEXCEPT {
+        if constexpr(sizeof...(Comp) == 1) {
+            return (const_cast<Comp &>(std::as_const(*this).template get<Comp>(entity)), ...);
+        } else {
+            return std::tuple<Comp &...>{get<Comp>(entity)...};
+        }
     }
 
     /**
@@ -876,9 +802,7 @@ public:
     template<typename Func>
     void each(Func func) const {
         const auto *view = candidate();
-        using accumulator_type = int[];
-        accumulator_type accumulator = { (&pool<Component>() == view ? (each(pool<Component>(), std::move(func), std::make_index_sequence<sizeof...(Component)-1>{}), 0) : 0)... };
-        (void)accumulator;
+        ((&pool<Component>() == view ? each(pool<Component>(), std::move(func), std::make_index_sequence<sizeof...(Component)-1>{}) : void()), ...);
     }
 
     /**
@@ -899,7 +823,7 @@ public:
      */
     template<typename Func>
     inline void each(Func func) {
-        const_cast<const View *>(this)->each([&func](const entity_type entity, const Component &... component) {
+        std::as_const(*this).each([&func](const entity_type entity, const Component &... component) {
             func(entity, const_cast<Component &>(component)...);
         });
     }
@@ -1016,7 +940,7 @@ public:
      * @return A pointer to the array of components.
      */
     inline raw_type * raw() ENTT_NOEXCEPT {
-        return const_cast<raw_type *>(const_cast<const View *>(this)->raw());
+        return const_cast<raw_type *>(std::as_const(*this).raw());
     }
 
     /**
@@ -1200,7 +1124,7 @@ public:
      * @return The component assigned to the entity.
      */
     inline Component & get(const entity_type entity) ENTT_NOEXCEPT {
-        return const_cast<Component &>(const_cast<const View *>(this)->get(entity));
+        return const_cast<Component &>(std::as_const(*this).get(entity));
     }
 
     /**
@@ -1242,7 +1166,7 @@ public:
      */
     template<typename Func>
     inline void each(Func func) {
-        const_cast<const View *>(this)->each([&func](const entity_type entity, const Component &component) {
+        std::as_const(*this).each([&func](const entity_type entity, const Component &component) {
             func(entity, const_cast<Component &>(component));
         });
     }
@@ -1359,7 +1283,7 @@ public:
      * @return A pointer to the array of components.
      */
     inline raw_type * raw() ENTT_NOEXCEPT {
-        return const_cast<raw_type *>(const_cast<const RawView *>(this)->raw());
+        return const_cast<raw_type *>(std::as_const(*this).raw());
     }
 
     /**
@@ -1498,7 +1422,7 @@ public:
      * @return A reference to the requested element.
      */
     inline raw_type & operator[](const size_type pos) ENTT_NOEXCEPT {
-        return const_cast<raw_type &>(const_cast<const RawView *>(this)->operator[](pos));
+        return const_cast<raw_type &>(std::as_const(*this).operator[](pos));
     }
 
     /**

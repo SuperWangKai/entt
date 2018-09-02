@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <utility>
 #include <vector>
+#include <functional>
+#include <type_traits>
 #include "../config/config.h"
 
 
@@ -143,19 +145,14 @@ class Sink<Ret(Args...)> final {
 
     using call_type = typename internal::sigh_traits<Ret(Args...)>::call_type;
 
-    template<Ret(*Function)(Args...)>
+    template<auto Function>
     static Ret proto(void *, Args... args) {
-        return (Function)(args...);
+        return std::invoke(Function, args...);
     }
 
-    template<typename Class, Ret(Class:: *Member)(Args... args) const>
+    template<typename Class, auto Member>
     static Ret proto(void *instance, Args... args) {
-        return (static_cast<const Class *>(instance)->*Member)(args...);
-    }
-
-    template<typename Class, Ret(Class:: *Member)(Args... args)>
-    static Ret proto(void *instance, Args... args) {
-        return (static_cast<Class *>(instance)->*Member)(args...);
+        return std::invoke(Member, static_cast<Class *>(instance), args...);
     }
 
     Sink(std::vector<call_type> *calls) ENTT_NOEXCEPT
@@ -171,8 +168,9 @@ public:
      *
      * @tparam Function A valid free function pointer.
      */
-    template<Ret(*Function)(Args...)>
+    template<auto Function>
     void connect() {
+        static_assert(std::is_invocable_r_v<Ret, decltype(Function), Args...>);
         disconnect<Function>();
         calls->emplace_back(nullptr, &proto<Function>);
     }
@@ -186,18 +184,20 @@ public:
      * avoid multiple connections for the same member function of a given
      * instance.
      *
-     * @tparam Class Type of class to which the member function belongs.
      * @tparam Member Member function to connect to the signal.
+     * @tparam Class Type of class to which the member function belongs.
      * @param instance A valid instance of type pointer to `Class`.
      */
-    template<typename Class, Ret(Class:: *Member)(Args...) const = &Class::receive>
+    template<auto Member, typename Class>
     void connect(Class *instance) {
-        disconnect<Class, Member>(instance);
+        static_assert(std::is_invocable_r_v<Ret, decltype(Member), Class, Args...>);
+        disconnect<Member>(instance);
         calls->emplace_back(instance, &proto<Class, Member>);
     }
 
     /**
-     * @brief Connects a member function for a given instance to a signal.
+     * @brief Connects the `receive` member function for a given instance to a
+     * signal.
      *
      * The signal isn't responsible for the connected object. Users must
      * guarantee that the lifetime of the instance overcomes the one of the
@@ -206,45 +206,33 @@ public:
      * instance.
      *
      * @tparam Class Type of class to which the member function belongs.
-     * @tparam Member Member function to connect to the signal.
      * @param instance A valid instance of type pointer to `Class`.
      */
-    template<typename Class, Ret(Class:: *Member)(Args...) = &Class::receive>
-    void connect(Class *instance) {
-        disconnect<Class, Member>(instance);
-        calls->emplace_back(instance, &proto<Class, Member>);
+    template<typename Class>
+    inline void connect(Class *instance) {
+        connect<&Class::receive>(instance);
     }
 
     /**
      * @brief Disconnects a free function from a signal.
      * @tparam Function A valid free function pointer.
      */
-    template<Ret(*Function)(Args...)>
+    template<auto Function>
     void disconnect() {
+        static_assert(std::is_invocable_r_v<Ret, decltype(Function), Args...>);
         call_type target{nullptr, &proto<Function>};
         calls->erase(std::remove(calls->begin(), calls->end(), std::move(target)), calls->end());
     }
 
     /**
      * @brief Disconnects the given member function from a signal.
-     * @tparam Class Type of class to which the member function belongs.
      * @tparam Member Member function to connect to the signal.
+     * @tparam Class Type of class to which the member function belongs.
      * @param instance A valid instance of type pointer to `Class`.
      */
-    template<typename Class, Ret(Class:: *Member)(Args...) const>
+    template<auto Member, typename Class>
     void disconnect(Class *instance) {
-        call_type target{instance, &proto<Class, Member>};
-        calls->erase(std::remove(calls->begin(), calls->end(), std::move(target)), calls->end());
-    }
-
-    /**
-     * @brief Disconnects the given member function from a signal.
-     * @tparam Class Type of class to which the member function belongs.
-     * @tparam Member Member function to connect to the signal.
-     * @param instance A valid instance of type pointer to `Class`.
-     */
-    template<typename Class, Ret(Class:: *Member)(Args...)>
-    void disconnect(Class *instance) {
+        static_assert(std::is_invocable_r_v<Ret, decltype(Member), Class, Args...>);
         call_type target{instance, &proto<Class, Member>};
         calls->erase(std::remove(calls->begin(), calls->end(), std::move(target)), calls->end());
     }

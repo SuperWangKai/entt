@@ -7,7 +7,7 @@ struct SigHListener {
     static void f(int &v) { v = 42; }
 
     bool g(int) { k = !k; return true; }
-    bool h(int) { return k; }
+    bool h(const int &) { return k; }
 
     void i() {}
     void l() {}
@@ -75,43 +75,43 @@ TEST(SigH, Comparison) {
     SigHListener s1;
     SigHListener s2;
 
-    sig1.sink().connect<SigHListener, &SigHListener::i>(&s1);
-    sig2.sink().connect<SigHListener, &SigHListener::i>(&s2);
+    sig1.sink().connect<&SigHListener::i>(&s1);
+    sig2.sink().connect<&SigHListener::i>(&s2);
 
     ASSERT_FALSE(sig1 == sig2);
     ASSERT_TRUE(sig1 != sig2);
 
-    sig1.sink().disconnect<SigHListener, &SigHListener::i>(&s1);
-    sig2.sink().disconnect<SigHListener, &SigHListener::i>(&s2);
+    sig1.sink().disconnect<&SigHListener::i>(&s1);
+    sig2.sink().disconnect<&SigHListener::i>(&s2);
 
-    sig1.sink().connect<SigHListener, &SigHListener::i>(&s1);
-    sig2.sink().connect<SigHListener, &SigHListener::l>(&s1);
+    sig1.sink().connect<&SigHListener::i>(&s1);
+    sig2.sink().connect<&SigHListener::l>(&s1);
 
     ASSERT_FALSE(sig1 == sig2);
     ASSERT_TRUE(sig1 != sig2);
 
-    sig1.sink().disconnect<SigHListener, &SigHListener::i>(&s1);
-    sig2.sink().disconnect<SigHListener, &SigHListener::l>(&s1);
+    sig1.sink().disconnect<&SigHListener::i>(&s1);
+    sig2.sink().disconnect<&SigHListener::l>(&s1);
 
     ASSERT_TRUE(sig1 == sig2);
     ASSERT_FALSE(sig1 != sig2);
 
-    sig1.sink().connect<SigHListener, &SigHListener::i>(&s1);
-    sig1.sink().connect<SigHListener, &SigHListener::l>(&s1);
-    sig2.sink().connect<SigHListener, &SigHListener::i>(&s1);
-    sig2.sink().connect<SigHListener, &SigHListener::l>(&s1);
+    sig1.sink().connect<&SigHListener::i>(&s1);
+    sig1.sink().connect<&SigHListener::l>(&s1);
+    sig2.sink().connect<&SigHListener::i>(&s1);
+    sig2.sink().connect<&SigHListener::l>(&s1);
 
     ASSERT_TRUE(sig1 == sig2);
 
-    sig1.sink().disconnect<SigHListener, &SigHListener::i>(&s1);
-    sig1.sink().disconnect<SigHListener, &SigHListener::l>(&s1);
-    sig2.sink().disconnect<SigHListener, &SigHListener::i>(&s1);
-    sig2.sink().disconnect<SigHListener, &SigHListener::l>(&s1);
+    sig1.sink().disconnect<&SigHListener::i>(&s1);
+    sig1.sink().disconnect<&SigHListener::l>(&s1);
+    sig2.sink().disconnect<&SigHListener::i>(&s1);
+    sig2.sink().disconnect<&SigHListener::l>(&s1);
 
-    sig1.sink().connect<SigHListener, &SigHListener::i>(&s1);
-    sig1.sink().connect<SigHListener, &SigHListener::l>(&s1);
-    sig2.sink().connect<SigHListener, &SigHListener::l>(&s1);
-    sig2.sink().connect<SigHListener, &SigHListener::i>(&s1);
+    sig1.sink().connect<&SigHListener::i>(&s1);
+    sig1.sink().connect<&SigHListener::l>(&s1);
+    sig2.sink().connect<&SigHListener::l>(&s1);
+    sig2.sink().connect<&SigHListener::i>(&s1);
 
     ASSERT_FALSE(sig1 == sig2);
 }
@@ -169,22 +169,22 @@ TEST(SigH, Members) {
     SigHListener *ptr = &s;
     entt::SigH<bool(int)> sigh;
 
-    sigh.sink().connect<SigHListener, &SigHListener::g>(ptr);
+    sigh.sink().connect<&SigHListener::g>(ptr);
     sigh.publish(42);
 
     ASSERT_TRUE(s.k);
     ASSERT_FALSE(sigh.empty());
     ASSERT_EQ(static_cast<entt::SigH<bool(int)>::size_type>(1), sigh.size());
 
-    sigh.sink().disconnect<SigHListener, &SigHListener::g>(ptr);
+    sigh.sink().disconnect<&SigHListener::g>(ptr);
     sigh.publish(42);
 
     ASSERT_TRUE(s.k);
     ASSERT_TRUE(sigh.empty());
     ASSERT_EQ(static_cast<entt::SigH<bool(int)>::size_type>(0), sigh.size());
 
-    sigh.sink().connect<SigHListener, &SigHListener::g>(ptr);
-    sigh.sink().connect<SigHListener, &SigHListener::h>(ptr);
+    sigh.sink().connect<&SigHListener::g>(ptr);
+    sigh.sink().connect<&SigHListener::h>(ptr);
 
     ASSERT_FALSE(sigh.empty());
     ASSERT_EQ(static_cast<entt::SigH<bool(int)>::size_type>(2), sigh.size());
@@ -233,18 +233,18 @@ TEST(SigH, ConstNonConstNoExcept) {
     entt::SigH<void()> sigh;
     ConstNonConstNoExcept functor;
 
-    sigh.sink().connect<ConstNonConstNoExcept, &ConstNonConstNoExcept::f>(&functor);
-    sigh.sink().connect<ConstNonConstNoExcept, &ConstNonConstNoExcept::g>(&functor);
-    sigh.sink().connect<ConstNonConstNoExcept, &ConstNonConstNoExcept::h>(&functor);
-    sigh.sink().connect<ConstNonConstNoExcept, &ConstNonConstNoExcept::i>(&functor);
+    sigh.sink().connect<&ConstNonConstNoExcept::f>(&functor);
+    sigh.sink().connect<&ConstNonConstNoExcept::g>(&functor);
+    sigh.sink().connect<&ConstNonConstNoExcept::h>(&functor);
+    sigh.sink().connect<&ConstNonConstNoExcept::i>(&functor);
     sigh.publish();
 
     ASSERT_EQ(functor.cnt, 4);
 
-    sigh.sink().disconnect<ConstNonConstNoExcept, &ConstNonConstNoExcept::f>(&functor);
-    sigh.sink().disconnect<ConstNonConstNoExcept, &ConstNonConstNoExcept::g>(&functor);
-    sigh.sink().disconnect<ConstNonConstNoExcept, &ConstNonConstNoExcept::h>(&functor);
-    sigh.sink().disconnect<ConstNonConstNoExcept, &ConstNonConstNoExcept::i>(&functor);
+    sigh.sink().disconnect<&ConstNonConstNoExcept::f>(&functor);
+    sigh.sink().disconnect<&ConstNonConstNoExcept::g>(&functor);
+    sigh.sink().disconnect<&ConstNonConstNoExcept::h>(&functor);
+    sigh.sink().disconnect<&ConstNonConstNoExcept::i>(&functor);
     sigh.publish();
 
     ASSERT_EQ(functor.cnt, 4);

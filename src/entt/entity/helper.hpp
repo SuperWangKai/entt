@@ -28,9 +28,7 @@ namespace entt {
  */
 template<typename Entity, typename... Component>
 void dependency(Registry<Entity> &registry, const Entity entity) {
-    using accumulator_type = int[];
-    accumulator_type accumulator = { ((registry.template has<Component>(entity) ? void() : (registry.template assign<Component>(entity), void())), 0)... };
-    (void)accumulator;
+    ((registry.template has<Component>(entity) ? void() : (registry.template assign<Component>(entity), void())), ...);
 }
 
 
@@ -43,7 +41,7 @@ void dependency(Registry<Entity> &registry, const Entity entity) {
  * The following adds components `AType` and `AnotherType` whenever `MyType` is
  * assigned to an entity:
  * @code{.cpp}
- * entt::DefaultRegistry registry;
+ * entt::Registry registry;
  * entt::connect<AType, AnotherType>(registry.construction<MyType>());
  * @endcode
  *
@@ -66,7 +64,7 @@ inline void connect(Sink<void(Registry<Entity> &, const Entity)> sink) {
  * The following breaks the dependency between the component `MyType` and the
  * components `AType` and `AnotherType`:
  * @code{.cpp}
- * entt::DefaultRegistry registry;
+ * entt::Registry registry;
  * entt::disconnect<AType, AnotherType>(registry.construction<MyType>());
  * @endcode
  *

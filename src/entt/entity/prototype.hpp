@@ -49,6 +49,11 @@ class Prototype final {
         basic_fn_type *assign;
     };
 
+    template<typename Component>
+    inline const Component & component() const ENTT_NOEXCEPT {
+        return registry->template get<Wrapper<Component>>(entity).component;
+    }
+
     void release() {
         if(registry->valid(entity)) {
             registry->destroy(entity);
@@ -170,7 +175,7 @@ public:
     }
 
     /**
-     * @brief Returns a reference to the given component.
+     * @brief Returns references to the given components.
      *
      * @warning
      * Attempting to get a component from a prototype that doesn't own it
@@ -178,16 +183,20 @@ public:
      * An assertion will abort the execution at runtime in debug mode if the
      * prototype doesn't own an instance of the given component.
      *
-     * @tparam Component Type of component to get.
-     * @return A reference to the component owned by the prototype.
+     * @tparam Component Types of components to get.
+     * @return References to the components owned by the prototype.
      */
-    template<typename Component>
-    const Component & get() const ENTT_NOEXCEPT {
-        return registry->template get<Wrapper<Component>>(entity).component;
+    template<typename... Component>
+    decltype(auto) get() const ENTT_NOEXCEPT {
+        if constexpr(sizeof...(Component) == 1) {
+            return component<Component...>();
+        } else {
+            return std::tuple<const Component &...>{get<Component>()...};
+        }
     }
 
     /**
-     * @brief Returns a reference to the given component.
+     * @brief Returns references to the given components.
      *
      * @warning
      * Attempting to get a component from a prototype that doesn't own it
@@ -195,48 +204,16 @@ public:
      * An assertion will abort the execution at runtime in debug mode if the
      * prototype doesn't own an instance of the given component.
      *
-     * @tparam Component Type of component to get.
-     * @return A reference to the component owned by the prototype.
-     */
-    template<typename Component>
-    inline Component & get() ENTT_NOEXCEPT {
-        return const_cast<Component &>(const_cast<const Prototype *>(this)->get<Component>());
-    }
-
-    /**
-     * @brief Returns a reference to the given components.
-     *
-     * @warning
-     * Attempting to get components from a prototype that doesn't own them
-     * results in undefined behavior.<br/>
-     * An assertion will abort the execution at runtime in debug mode if the
-     * prototype doesn't own instances of the given components.
-     *
-     * @tparam Component Type of components to get.
+     * @tparam Component Types of components to get.
      * @return References to the components owned by the prototype.
      */
     template<typename... Component>
-    inline std::enable_if_t<(sizeof...(Component) > 1), std::tuple<const Component &...>>
-    get() const ENTT_NOEXCEPT {
-        return std::tuple<const Component &...>{get<Component>()...};
-    }
-
-    /**
-     * @brief Returns a reference to the given components.
-     *
-     * @warning
-     * Attempting to get components from a prototype that doesn't own them
-     * results in undefined behavior.<br/>
-     * An assertion will abort the execution at runtime in debug mode if the
-     * prototype doesn't own instances of the given components.
-     *
-     * @tparam Component Type of components to get.
-     * @return References to the components owned by the prototype.
-     */
-    template<typename... Component>
-    inline std::enable_if_t<(sizeof...(Component) > 1), std::tuple<Component &...>>
-    get() ENTT_NOEXCEPT {
-        return std::tuple<Component &...>{get<Component>()...};
+    inline decltype(auto) get() ENTT_NOEXCEPT {
+        if constexpr(sizeof...(Component) == 1) {
+            return (const_cast<Component &>(std::as_const(*this).template get<Component>()), ...);
+        } else {
+            return std::tuple<Component &...>{get<Component>()...};
+        }
     }
 
     /**
@@ -479,16 +456,6 @@ private:
     Registry<Entity> *registry;
     entity_type entity;
 };
-
-
-/**
- * @brief Default prototype
- *
- * The default prototype is the best choice for almost all the
- * applications.<br/>
- * Users should have a really good reason to choose something different.
- */
-using DefaultPrototype = Prototype<DefaultRegistry::entity_type>;
 
 
 }
