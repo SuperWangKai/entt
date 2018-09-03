@@ -8,6 +8,7 @@
 #include <functional>
 #include <type_traits>
 #include "../config/config.h"
+#include "delegate.hpp"
 
 
 namespace entt {
@@ -22,41 +23,26 @@ namespace entt {
 namespace internal {
 
 
-template<typename>
-struct sigh_traits;
-
-
-template<typename Ret, typename... Args>
-struct sigh_traits<Ret(Args...)> {
-    using proto_fn_type = Ret(void *, Args...);
-    using call_type = std::pair<void *, proto_fn_type *>;
-};
-
-
 template<typename, typename>
 struct Invoker;
 
 
 template<typename Ret, typename... Args, typename Collector>
 struct Invoker<Ret(Args...), Collector> {
-    using proto_fn_type = typename sigh_traits<Ret(Args...)>::proto_fn_type;
-
     virtual ~Invoker() = default;
 
-    bool invoke(Collector &collector, proto_fn_type *proto, void *instance, Args... args) const {
-        return collector(proto(instance, args...));
+    bool invoke(Collector &collector, const Delegate<Ret(Args...)> &delegate, Args... args) const {
+        return collector(delegate(args...));
     }
 };
 
 
 template<typename... Args, typename Collector>
 struct Invoker<void(Args...), Collector> {
-    using proto_fn_type = typename sigh_traits<void(Args...)>::proto_fn_type;
-
     virtual ~Invoker() = default;
 
-    bool invoke(Collector &, proto_fn_type *proto, void *instance, Args... args) const {
-        return (proto(instance, args...), true);
+    bool invoke(Collector &, const Delegate<void(Args...)> &delegate, Args... args) const {
+        return (delegate(args...), true);
     }
 };
 
@@ -120,7 +106,7 @@ class Sink;
  * @tparam Collector Type of collector to use, if any.
  */
 template<typename Function, typename Collector = internal::DefaultCollectorType<Function>>
-class SigH;
+struct SigH;
 
 
 /**
@@ -143,19 +129,7 @@ class Sink<Ret(Args...)> final {
     template<typename, typename>
     friend class SigH;
 
-    using call_type = typename internal::sigh_traits<Ret(Args...)>::call_type;
-
-    template<auto Function>
-    static Ret proto(void *, Args... args) {
-        return std::invoke(Function, args...);
-    }
-
-    template<typename Class, auto Member>
-    static Ret proto(void *instance, Args... args) {
-        return std::invoke(Member, static_cast<Class *>(instance), args...);
-    }
-
-    Sink(std::vector<call_type> *calls) ENTT_NOEXCEPT
+    Sink(std::vector<Delegate<Ret(Args...)>> *calls) ENTT_NOEXCEPT
         : calls{calls}
     {}
 
@@ -170,9 +144,8 @@ public:
      */
     template<auto Function>
     void connect() {
-        static_assert(std::is_invocable_r_v<Ret, decltype(Function), Args...>);
         disconnect<Function>();
-        calls->emplace_back(nullptr, &proto<Function>);
+        calls->emplace_back(Delegate<Ret(Args...)>{connect_arg_t<Function>{}});
     }
 
     /**
@@ -190,9 +163,8 @@ public:
      */
     template<auto Member, typename Class>
     void connect(Class *instance) {
-        static_assert(std::is_invocable_r_v<Ret, decltype(Member), Class, Args...>);
         disconnect<Member>(instance);
-        calls->emplace_back(instance, &proto<Class, Member>);
+        calls->emplace_back(Delegate<Ret(Args...)>{connect_arg_t<Member>{}, instance});
     }
 
     /**
@@ -219,9 +191,8 @@ public:
      */
     template<auto Function>
     void disconnect() {
-        static_assert(std::is_invocable_r_v<Ret, decltype(Function), Args...>);
-        call_type target{nullptr, &proto<Function>};
-        calls->erase(std::remove(calls->begin(), calls->end(), std::move(target)), calls->end());
+        Delegate<Ret(Args...)> delegate{connect_arg_t<Function>{}};
+        calls->erase(std::remove(calls->begin(), calls->end(), std::move(delegate)), calls->end());
     }
 
     /**
@@ -232,9 +203,8 @@ public:
      */
     template<auto Member, typename Class>
     void disconnect(Class *instance) {
-        static_assert(std::is_invocable_r_v<Ret, decltype(Member), Class, Args...>);
-        call_type target{instance, &proto<Class, Member>};
-        calls->erase(std::remove(calls->begin(), calls->end(), std::move(target)), calls->end());
+        Delegate<Ret(Args...)> delegate{connect_arg_t<Member>{}, instance};
+        calls->erase(std::remove(calls->begin(), calls->end(), std::move(delegate)), calls->end());
     }
 
     /**
@@ -244,7 +214,7 @@ public:
      */
     template<typename Class>
     void disconnect(Class *instance) {
-        auto func = [instance](const call_type &call) { return call.first == instance; };
+        auto func = [instance](const auto &delegate) { return delegate.instance() == instance; };
         calls->erase(std::remove_if(calls->begin(), calls->end(), std::move(func)), calls->end());
     }
 
@@ -256,7 +226,7 @@ public:
     }
 
 private:
-    std::vector<call_type> *calls;
+    std::vector<Delegate<Ret(Args...)>> *calls;
 };
 
 
@@ -284,12 +254,9 @@ private:
  * @tparam Collector Type of collector to use, if any.
  */
 template<typename Ret, typename... Args, typename Collector>
-class SigH<Ret(Args...), Collector> final: private internal::Invoker<Ret(Args...), Collector> {
-    using call_type = typename internal::sigh_traits<Ret(Args...)>::call_type;
-
-public:
+struct SigH<Ret(Args...), Collector> final: private internal::Invoker<Ret(Args...), Collector> {
     /*! @brief Unsigned integer type. */
-    using size_type = typename std::vector<call_type>::size_type;
+    using size_type = typename std::vector<Delegate<Ret(Args...)>>::size_type;
     /*! @brief Collector type. */
     using collector_type = Collector;
     /*! @brief Sink type. */
@@ -341,7 +308,7 @@ public:
     void publish(Args... args) const {
         for(auto pos = calls.size(); pos; --pos) {
             auto &call = calls[pos-1];
-            call.second(call.first, args...);
+            call(args...);
         }
     }
 
@@ -354,7 +321,7 @@ public:
         collector_type collector;
 
         for(auto &&call: calls) {
-            if(!this->invoke(collector, call.second, call.first, args...)) {
+            if(!this->invoke(collector, call, args...)) {
                 break;
             }
         }
@@ -386,7 +353,7 @@ public:
     }
 
 private:
-    std::vector<call_type> calls;
+    std::vector<Delegate<Ret(Args...)>> calls;
 };
 
 

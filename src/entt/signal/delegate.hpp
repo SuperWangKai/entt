@@ -12,6 +12,14 @@ namespace entt {
 
 
 /**
+ * @brief Used to wrap a function of a specified type as an argument.
+ * @tparam Invokable A pointer to either a function or a member function.
+ */
+template<auto Invokable>
+struct connect_arg_t {};
+
+
+/**
  * @brief Basic delegate implementation.
  *
  * Primary template isn't defined on purpose. All the specializations give a
@@ -50,6 +58,35 @@ class Delegate<Ret(Args...)> final {
     }
 
 public:
+    /*! @brief Default constructor. */
+    Delegate() ENTT_NOEXCEPT
+        : stub{}
+    {}
+
+    /**
+     * @brief Constructs a delegate and binds a free function to it.
+     * @tparam Function A valid free function pointer.
+     */
+    template<auto Function>
+    Delegate(connect_arg_t<Function>) ENTT_NOEXCEPT
+        : stub{}
+    {
+        connect<Function>();
+    }
+
+    /**
+     * @brief Constructs a delegate and binds a member function to it.
+     * @tparam Member Member function to connect to the delegate.
+     * @tparam Class Type of class to which the member function belongs.
+     * @param instance A valid instance of type pointer to `Class`.
+     */
+    template<auto Member, typename Class>
+    Delegate(connect_arg_t<Member>, Class *instance) ENTT_NOEXCEPT
+        : stub{}
+    {
+        connect<Member>(instance);
+    }
+
     /**
      * @brief Checks whether a delegate actually stores a listener.
      * @return True if the delegate is empty, false otherwise.
@@ -93,6 +130,14 @@ public:
      */
     void reset() ENTT_NOEXCEPT {
         stub.second = nullptr;
+    }
+
+    /**
+     * @brief Returns the instance bound to a delegate, if any.
+     * @return An opaque pointer to the instance bound to the delegate, if any.
+     */
+    const void * instance() const ENTT_NOEXCEPT {
+        return stub.first;
     }
 
     /**

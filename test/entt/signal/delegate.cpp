@@ -76,3 +76,14 @@ TEST(Delegate, ConstNonConstNoExcept) {
 
     ASSERT_EQ(functor.cnt, 4);
 }
+
+TEST(Delegate, Constructors) {
+    DelegateFunctor functor;
+    entt::Delegate<int(int)> empty{};
+    entt::Delegate<int(int)> func{entt::connect_arg_t<&delegateFunction>{}};
+    entt::Delegate<int(int)> member{entt::connect_arg_t<&DelegateFunctor::operator()>{}, &functor};
+
+    ASSERT_TRUE(empty.empty());
+    ASSERT_FALSE(func.empty());
+    ASSERT_FALSE(member.empty());
+}
