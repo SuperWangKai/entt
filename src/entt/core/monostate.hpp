@@ -45,7 +45,7 @@ struct Monostate {
 
 private:
     template<typename Type>
-    inline static std::atomic<Type> value;
+    inline static std::atomic<Type> value = {};
 };
 
 

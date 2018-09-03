@@ -11,11 +11,8 @@
 namespace entt {
 
 
-/**
- * @brief Used to wrap a function of a specified type as an argument.
- * @tparam Invokable A pointer to either a function or a member function.
- */
-template<auto Invokable>
+/*! @brief Used to wrap a function or a member function of a specified type. */
+template<auto>
 struct connect_arg_t {};
 
 

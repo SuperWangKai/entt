@@ -127,7 +127,7 @@ template<typename Ret, typename... Args>
 class Sink<Ret(Args...)> final {
     /*! @brief A signal is allowed to create sinks. */
     template<typename, typename>
-    friend class SigH;
+    friend struct SigH;
 
     Sink(std::vector<Delegate<Ret(Args...)>> *calls) ENTT_NOEXCEPT
         : calls{calls}
@@ -145,7 +145,9 @@ public:
     template<auto Function>
     void connect() {
         disconnect<Function>();
-        calls->emplace_back(Delegate<Ret(Args...)>{connect_arg_t<Function>{}});
+        Delegate<Ret(Args...)> delegate{};
+        delegate.template connect<Function>();
+        calls->emplace_back(std::move(delegate));
     }
 
     /**
@@ -164,7 +166,9 @@ public:
     template<auto Member, typename Class>
     void connect(Class *instance) {
         disconnect<Member>(instance);
-        calls->emplace_back(Delegate<Ret(Args...)>{connect_arg_t<Member>{}, instance});
+        Delegate<Ret(Args...)> delegate{};
+        delegate.template connect<Member>(instance);
+        calls->emplace_back(std::move(delegate));
     }
 
     /**
@@ -191,7 +195,8 @@ public:
      */
     template<auto Function>
     void disconnect() {
-        Delegate<Ret(Args...)> delegate{connect_arg_t<Function>{}};
+        Delegate<Ret(Args...)> delegate{};
+        delegate.template connect<Function>();
         calls->erase(std::remove(calls->begin(), calls->end(), std::move(delegate)), calls->end());
     }
 
@@ -203,7 +208,8 @@ public:
      */
     template<auto Member, typename Class>
     void disconnect(Class *instance) {
-        Delegate<Ret(Args...)> delegate{connect_arg_t<Member>{}, instance};
+        Delegate<Ret(Args...)> delegate{};
+        delegate.template connect<Member>(instance);
         calls->erase(std::remove(calls->begin(), calls->end(), std::move(delegate)), calls->end());
     }
 
