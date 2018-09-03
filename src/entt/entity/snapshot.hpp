@@ -427,7 +427,9 @@ class ContinuousLoader final {
             return;
         } else if constexpr(std::is_same_v<Member, Entity>) {
             instance.*member = map(instance.*member);
-        } else if constexpr(std::is_same_v<typename std::iterator_traits<typename Member::iterator>::value_type, Entity>) {
+        } else {
+            static_assert(std::is_same_v<typename std::iterator_traits<typename Member::iterator>::value_type, Entity>);
+
             for(auto &entity: instance.*member) {
                 entity = map(entity);
             }
