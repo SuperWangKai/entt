@@ -4,7 +4,6 @@
 
 #include <atomic>
 #include <cassert>
-#include "family.hpp"
 #include "hashed_string.hpp"
 
 
@@ -46,7 +45,7 @@ struct Monostate {
 
 private:
     template<typename Type>
-    static inline std::atomic<Type> value;
+    inline static std::atomic<Type> value;
 };
 
 
